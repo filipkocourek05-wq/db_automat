@@ -65,11 +65,20 @@
       
       <!-- Panel pro zápis do DB -->
       <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px;">
-        <select id="writeModeSelect" style="width: 130px;" onchange="toggleWriteCustom()">
-          <option value="ok">Všechny se stavem OK</option>
-          <option value="custom">Vybrané pozice...</option>
+        <select id="writeModeSelect" style="width: 110px;" onchange="toggleWriteMode()">
+          <option value="ok_all">Vše OK</option>
+          <option value="ok_range">Rozsah OK</option>
+          <option value="custom">Vybrané...</option>
         </select>
+        
         <input type="text" id="writeCustomPos" placeholder="např. 1, 3, 8" style="display:none; width: 100px;" title="Zadej čísla pozic z DB oddělená čárkou">
+        
+        <div id="writeRangeInputs" class="row-flex" style="display:none; gap: 4px;">
+          <input type="number" id="writeStart" value="1" min="1" style="width: 45px;" title="Od">
+          <span style="font-size:10px;">-</span>
+          <input type="number" id="writeEnd" value="50" min="1" style="width: 45px;" title="Do">
+        </div>
+
         <button onclick="startWriteCycle()" style="flex:1; background:var(--warn); color:black;">✍️ Zapsat</button>
       </div>
 
@@ -159,7 +168,6 @@
   let dbData = [];
   let currentEditingLogId = null;
 
-  // Stav cyklu EXTRAKTU (čtení)
   let readingActive = false;
   let commanderState = 0; 
   let currentTargetItem = 1;
@@ -168,12 +176,10 @@
   let tempA = ""; let tempB = "";
   let lastValidC = ""; 
 
-  // Stav cyklu ZÁPISU
   let writeActive = false;
   let writeQueue = [];
   let writeIndex = 0;
 
-  // Proměnné pro starý MANUÁLNÍ mód
   let waitingForB = false;
 
   let appState = { folders: ["Výchozí složka"], activeFolder: "Výchozí složka", logs: [], globalSeq: 1 };
@@ -263,8 +269,10 @@
     sendToMacro(`READ_BATCH:${startItem}:${batchEndItem}:${totalTargetItems}`);
   }
 
-  function toggleWriteCustom() {
-    document.getElementById('writeCustomPos').style.display = document.getElementById('writeModeSelect').value === 'custom' ? 'block' : 'none';
+  function toggleWriteMode() {
+    const mode = document.getElementById('writeModeSelect').value;
+    document.getElementById('writeCustomPos').style.display = (mode === 'custom') ? 'block' : 'none';
+    document.getElementById('writeRangeInputs').style.display = (mode === 'ok_range') ? 'flex' : 'none';
   }
 
   function startWriteCycle() {
@@ -274,8 +282,15 @@
     let mode = document.getElementById('writeModeSelect').value;
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
 
-    if (mode === 'ok') {
+    if (mode === 'ok_all') {
       writeQueue = currentFolderLogs.filter(l => l.status === 'OK');
+    } else if (mode === 'ok_range') {
+      let startIdx = parseInt(document.getElementById('writeStart').value, 10);
+      let endIdx = parseInt(document.getElementById('writeEnd').value, 10);
+      writeQueue = currentFolderLogs.filter(l => {
+          let idx = l.listIndex || parseInt(l.dbPosText.replace(/[^\d]/g, '')) || 0;
+          return l.status === 'OK' && idx >= startIdx && idx <= endIdx;
+      });
     } else {
       let str = document.getElementById('writeCustomPos').value;
       let posArray = str.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
@@ -286,9 +301,8 @@
       }
     }
 
-    if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis (Zkontroluj stav OK nebo zadaná čísla).");
+    if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis (Zkontroluj stav OK, rozsah nebo zadaná čísla).");
 
-    // ŘAZENÍ: Řadíme primárně podle fyzického řádku (listIndex), aby makro jelo hezky dolů
     writeQueue.sort((a, b) => {
        let idxA = a.listIndex || parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
        let idxB = b.listIndex || parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
@@ -311,8 +325,6 @@
 
     let item = writeQueue[writeIndex];
     let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, ''));
-    
-    // Klíčová oprava: Posíláme makropadu FYZICKÝ ŘÁDEK z paměti, nikoliv ID Pozice
     let targetRow = item.listIndex || posNum; 
 
     const ioBox = document.getElementById('macroIO');
@@ -336,7 +348,6 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // Zpracování odpovědi ZÁPISU (W_OK / W_DNY)
       if (writeActive) {
         if (val === "W_OK" || val === "W_DNY") {
           let item = writeQueue[writeIndex];
@@ -353,7 +364,6 @@
         return;
       }
 
-      // Zpracování DNY a ERR pro původní manuální mód
       if (val.startsWith("ERR") || val.startsWith("DNY")) {
         const isDeny = val.startsWith("DNY");
         const posNum = val.replace("ERR", "").replace("DNY", "");
@@ -368,7 +378,6 @@
         return;
       }
 
-      // Logika Dávkového EXTRAKTU
       if (readingActive) {
         if (commanderState === 0) {
           tempA = val; commanderState = 1;
@@ -390,7 +399,6 @@
         return;
       }
 
-      // Původní manuální režim 
       if (!waitingForB) {
         tempA = val; waitingForB = true; 
         curAEl.textContent = tempA || "(prázdné)";
@@ -453,7 +461,7 @@
 
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
-      listIndex: currentTargetItem, // TOTO UMOŽNÍ SPRÁVNÉ SCROLLOVÁNÍ
+      listIndex: currentTargetItem, 
       dbPosText: "Pozice: " + posVal, a: valA, b: valB, c: outputC, status: status, statusText: statusText, note: ""
     };
     appState.logs.unshift(newLog); 
@@ -481,7 +489,7 @@
 
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
-      listIndex: null, // Pro manuální režim pořadí řádku neznáme
+      listIndex: null,
       dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText, note: ""
     };
     appState.logs.unshift(newLog); 
