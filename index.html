@@ -36,7 +36,7 @@
   <div class="card">
     <div class="row-flex" style="justify-content:space-between;">
       <h2>1. Terč pro Makropad</h2>
-      <button id="btnConnect" onclick="connectSerial()" style="font-size:11px; padding:4px 8px; background:var(--warn);">Nepřipojeno (Klikni pro USB)</button>
+      <button id="btnConnect" onclick="connectSerial()" style="font-size:11px; padding:4px 8px; background:var(--err); color:#fff;">Nepřipojeno (Klikni pro USB)</button>
     </div>
     <div class="macro-target-box">
       <label id="stepLabel">ČEKÁM NA DATA A (Vlož a dej Enter)</label>
@@ -97,13 +97,13 @@
 <script>
   let dbData = [];
   let waitingForB = false;
-  let waitingForPosition = false; // Nový stav pro čekání na č. pozice
+  let waitingForPosition = false; 
   let tempA = "";
   let lastValidC = ""; 
   let seenCounts = {};
   let logs = [];
 
-  // --- SÉRIOVÁ KOMUNIKACE S MAKROPADEM ---
+  // --- SÉRIOVÁ KOMUNIKACE A HANDSHAKE ---
   let serialPort;
   let serialWriter;
 
@@ -114,12 +114,25 @@
       const textEncoder = new TextEncoderStream();
       textEncoder.readable.pipeTo(serialPort.writable);
       serialWriter = textEncoder.writable.getWriter();
-      
-      const btn = document.getElementById('btnConnect');
-      btn.textContent = "USB Připojeno";
-      btn.style.background = "var(--ok)";
+      updateMacropadState();
     } catch (e) {
       alert("Nepodařilo se připojit: " + e);
+    }
+  }
+
+  async function updateMacropadState() {
+    const btn = document.getElementById('btnConnect');
+    if (serialWriter) {
+      if (dbData.length > 0) {
+        await sendToMacro("READY"); // Povolí makropadu start
+        btn.textContent = "ZAPOJENO (Lze spustit)";
+        btn.style.background = "var(--ok)";
+        btn.style.color = "#000";
+      } else {
+        btn.textContent = "USB PŘIPOJENO (Čekám na Excel)";
+        btn.style.background = "var(--warn)";
+        btn.style.color = "#000";
+      }
     }
   }
 
@@ -159,6 +172,8 @@
     const fbInput = document.getElementById('fallbackVal');
     if (!fbInput.value && dbData.length > 0) fbInput.value = dbData[0].f;
     document.getElementById('excelStatus').innerHTML = `Načteno <b>${totalRows}</b> řádků. Aktivních: <b style="color:var(--ok)">${dbData.length}</b>.`;
+    
+    updateMacropadState(); // Kontrola, zda už je připojené USB pro odemčení startu
     ioInput.focus();
   }
 
@@ -169,8 +184,7 @@
       ioInput.value = "";
 
       if (waitingForPosition) {
-        // MAkropad právě vložil číslo chybové pozice z DB
-        logs[0].dbPosText = "Chyba na pozici: " + val;
+        logs[0].dbPosText = "Pozice z DB: " + val;
         waitingForPosition = false;
         renderLog();
         resetCycle();
@@ -188,11 +202,11 @@
         waitingForB = false;
         const result = evaluateLookup(tempA, tempB);
         
-        // Zde se HTML rozhoduje, co pošle makropadu do Arduina!
-        if (result.status === "MISSING" || result.status === "MULTI") {
+        // Zpracování chyb - Nyní i DUP vyhodí error cestu (SKIP)
+        if (result.status === "MISSING" || result.status === "MULTI" || result.status === "DUP") {
           sendToMacro("SKIP");
           waitingForPosition = true;
-          stepLabel.textContent = "CHYBA -> ČEKÁM NA POZICI Z DB";
+          stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI Z DB`;
           stepLabel.style.color = "#ef4444";
         } else {
           sendToMacro("OK");
@@ -228,7 +242,7 @@
     if (matches.length === 0) {
       status = "MISSING";
       outputC = lastValidC !== "" ? lastValidC : fallback;
-      statusText = "CHYBÍ V EXCELU (Smazat)";
+      statusText = "CHYBÍ V EXCELU";
     } else if (matches.length > 1) {
       status = "MULTI";
       outputC = matches[0].f;
@@ -239,7 +253,10 @@
       outputC = matches[0].f;
       lastValidC = outputC;
       lastCEl.textContent = lastValidC;
-      if (count > 1) { status = "DUP"; statusText = `DUPLICITA (${count}x)`; }
+      if (count > 1) { 
+        status = "DUP"; 
+        statusText = `DUPLICITA (${count}x)`; 
+      }
     }
 
     if (status !== "DUP" && count > 1) statusText += ` [Opak. ${count}x]`;
