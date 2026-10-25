@@ -7,8 +7,7 @@
   :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --muted: #94a3b8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; --dup: #a855f7; --accent: #38bdf8; }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
   body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 380px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
-  /* Přidáno overflow:hidden a min-height:0 pro správné scrollování v CSS Flexboxu */
-  .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; overflow: hidden; }
+  .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; overflow: hidden; position: relative; }
   h2, h3 { margin: 0; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .macro-target-box { background: #020617; border: 3px solid var(--accent); border-radius: 8px; padding: 12px; text-align: center; }
   .macro-target-box label { display: block; font-size: 12px; color: var(--accent); margin-bottom: 6px; font-weight: bold; }
@@ -23,19 +22,21 @@
   .stat-item.ok { border-color: var(--ok); } .stat-item.err { border-color: var(--err); } .stat-item.warn { border-color: var(--warn); } .stat-item.dup { border-color: var(--dup); }
   .stat-val { font-size: 18px; font-weight: bold; display: block; }
   .log-container { flex: 1; overflow-y: auto; border: 1px solid #334155; border-radius: 6px; background: #020617; min-height: 0; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
   th { position: sticky; top: 0; background: #1e293b; color: var(--muted); text-align: left; padding: 10px; border-bottom: 1px solid #334155; z-index: 10; }
-  td { padding: 8px 10px; border-bottom: 1px solid #1e293b; font-family: Consolas, monospace; vertical-align: middle; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1e293b; font-family: Consolas, monospace; vertical-align: middle; word-wrap: break-word; }
   tr.row-OK { background: rgba(34, 197, 94, 0.08); } tr.row-MISSING { background: rgba(239, 68, 68, 0.28); color: #fca5a5; font-weight: bold; } tr.row-MULTI { background: rgba(245, 158, 11, 0.25); color: #fde68a; font-weight: bold; } tr.row-DUP { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; } tr.row-DENIED { background: rgba(245, 158, 11, 0.4); color: #fff; font-weight: bold; }
   .pill { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
   .pill-OK { background: var(--ok); color: #000; } .pill-MISSING { background: var(--err); color: #fff; } .pill-MULTI, .pill-DENIED { background: var(--warn); color: #000; } .pill-DUP { background: var(--dup); color: #fff; }
   .row-flex { display: flex; gap: 8px; align-items: center; }
   input[type="text"], input[type="number"], select { background: #0f172a; border: 1px solid #334155; color: #fff; padding: 6px 8px; border-radius: 4px; width: 100%; font-size: 12px;}
-  .chk-cell { text-align: center; width: 30px; }
   .del-btn { cursor: pointer; color: var(--err); font-weight: bold; font-size: 14px; background: none; border: none; padding: 0; }
   .del-btn:hover { color: #fca5a5; }
-  input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent); margin: 0; vertical-align: middle; }
   .export-panel { background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
+  
+  /* Modal pro poznámky */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
+  .modal-box { background: var(--panel); border: 1px solid #334155; border-radius: 8px; padding: 20px; width: 400px; max-width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
@@ -81,7 +82,6 @@
       <label style="font-size:12px; cursor:pointer;"><input type="checkbox" id="onlyErrors" onchange="renderLog()"> Jen problémové zobrazení</label>
     </div>
     
-    <!-- Nový panel pro Export logu -->
     <div class="row-flex export-panel" style="justify-content: space-between;">
       <div class="row-flex" style="gap: 12px;">
         <span style="color: var(--muted); font-weight: bold;">Stáhnout jako CSV:</span>
@@ -97,12 +97,12 @@
       <table>
         <thead>
           <tr>
-            <th class="chk-cell">✓</th>
             <th style="width: 110px;">Pozice DB</th>
-            <th>Data A</th>
-            <th>Data B</th>
-            <th>Data C (Vloženo)</th>
-            <th style="width: 190px;">Stav</th>
+            <th style="width: 20%;">Data A</th>
+            <th style="width: 15%;">Data B</th>
+            <th style="width: 15%;">Data C</th>
+            <th style="width: 130px;">Stav</th>
+            <th>Poznámka</th>
             <th style="width: 30px;"></th>
           </tr>
         </thead>
@@ -111,11 +111,36 @@
     </div>
   </div>
 
+  <!-- Modalní okno pro poznámku -->
+  <div id="noteModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 style="margin-bottom: 15px;">Přidat / Upravit poznámku</h3>
+      
+      <!-- Roletka zobrazená pouze u DENY -->
+      <div id="denyOptionsGroup" style="margin-bottom: 10px; display: none;">
+        <label style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px;">Důvod zamítnutí:</label>
+        <select id="denyPresetSelect" onchange="handlePresetChange()">
+          <option value="Chybí odpovídající testing characteristics">Chybí odpovídající testing characteristics</option>
+          <option value="Vícero testing characteristics na výběr se stejným názvem">Vícero testing characteristics na výběr se stejným názvem</option>
+          <option value="custom">Vlastní poznámka...</option>
+        </select>
+      </div>
+
+      <input type="text" id="noteTextInput" placeholder="Zadej text poznámky..." autocomplete="off">
+      
+      <div class="row-flex" style="margin-top: 15px; justify-content: flex-end;">
+        <button class="secondary" onclick="closeNoteModal()">Zrušit</button>
+        <button onclick="saveNote()">Uložit poznámku</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   let dbData = [];
   let waitingForB = false;
   let tempA = "";
   let lastValidC = ""; 
+  let currentEditingLogId = null;
 
   // --- SPRÁVA STAVU (LOCAL STORAGE) ---
   let appState = {
@@ -132,9 +157,7 @@
     if (!appState.folders || appState.folders.length === 0) appState.folders = ["Výchozí složka"];
     if (!appState.activeFolder) appState.activeFolder = appState.folders[0];
     if (!appState.globalSeq) appState.globalSeq = 1;
-    renderFolders();
-    updateStats();
-    renderLog();
+    renderFolders(); updateStats(); renderLog();
   }
 
   // --- SLOŽKY ---
@@ -227,7 +250,6 @@
           if (isDeny) {
             lastLog.status = "DENIED";
             lastLog.statusText = "ZAMÍTNUTO (Ruční Deny)";
-            lastLog.checked = false;
           }
           saveState(); renderLog(); updateStats();
         }
@@ -285,8 +307,7 @@
 
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
-      dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText,
-      checked: (status === "OK" || status === "DUP") 
+      dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText, note: ""
     };
     appState.logs.unshift(newLog); 
     saveState(); updateStats(); renderLog();
@@ -311,22 +332,23 @@
 
     for (const item of curLogs) {
       const tr = document.createElement('tr'); tr.className = `row-${item.status}`;
+      const safeNote = item.note || "";
       tr.innerHTML = `
-        <td class="chk-cell"><input type="checkbox" onchange="toggleCheck(${item.id})" ${item.checked ? "checked" : ""}></td>
         <td>${escapeHtml(item.dbPosText)}</td>
         <td>${escapeHtml(item.a)}</td>
         <td>${escapeHtml(item.b)}</td>
         <td>${escapeHtml(item.c)}</td>
         <td><span class="pill pill-${item.status}">${item.statusText}</span></td>
+        <td>
+          <div class="row-flex" style="justify-content:space-between; width:100%;">
+            <span style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block; max-width: 140px;" title="${escapeHtml(safeNote)}">${escapeHtml(safeNote)}</span>
+            <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="openNoteModal(${item.id})">📝</button>
+          </div>
+        </td>
         <td><button class="del-btn" onclick="deleteLog(${item.id})" title="Smazat">🗑</button></td>
       `;
       tbody.appendChild(tr);
     }
-  }
-
-  function toggleCheck(id) {
-    const log = appState.logs.find(l => l.id === id);
-    if (log) { log.checked = !log.checked; saveState(); }
   }
 
   function deleteLog(id) {
@@ -339,6 +361,81 @@
     ioInput.value = ""; stepLabel.textContent = "ČEKÁM NA DATA A"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
   }
   
+  // --- POZNÁMKY (MODAL) ---
+  function openNoteModal(id) {
+    const log = appState.logs.find(l => l.id === id);
+    if (!log) return;
+    currentEditingLogId = id;
+    
+    const modal = document.getElementById('noteModal');
+    const denyGroup = document.getElementById('denyOptionsGroup');
+    const presetSelect = document.getElementById('denyPresetSelect');
+    const txtInput = document.getElementById('noteTextInput');
+    
+    const existingNote = log.note || "";
+    
+    if (log.status === 'DENIED') {
+      denyGroup.style.display = 'block';
+      if (existingNote === "Chybí odpovídající testing characteristics" || existingNote === "Vícero testing characteristics na výběr se stejným názvem") {
+        presetSelect.value = existingNote;
+        txtInput.style.display = 'none';
+      } else if (existingNote === "") {
+        // Automatický default pro DENY
+        presetSelect.value = "Chybí odpovídající testing characteristics";
+        txtInput.style.display = 'none';
+      } else {
+        presetSelect.value = "custom";
+        txtInput.style.display = 'block';
+        txtInput.value = existingNote;
+      }
+    } else {
+      denyGroup.style.display = 'none';
+      txtInput.style.display = 'block';
+      txtInput.value = existingNote;
+    }
+    
+    modal.style.display = 'flex';
+    if (txtInput.style.display === 'block') txtInput.focus();
+  }
+
+  function handlePresetChange() {
+    const presetSelect = document.getElementById('denyPresetSelect');
+    const txtInput = document.getElementById('noteTextInput');
+    if (presetSelect.value === 'custom') {
+      txtInput.style.display = 'block';
+      txtInput.focus();
+      txtInput.value = "";
+    } else {
+      txtInput.style.display = 'none';
+    }
+  }
+
+  function closeNoteModal() {
+    document.getElementById('noteModal').style.display = 'none';
+    currentEditingLogId = null;
+  }
+
+  function saveNote() {
+    if (!currentEditingLogId) return;
+    const log = appState.logs.find(l => l.id === currentEditingLogId);
+    if (!log) return;
+
+    const presetSelect = document.getElementById('denyPresetSelect');
+    const txtInput = document.getElementById('noteTextInput');
+    
+    let finalNote = "";
+    if (log.status === 'DENIED' && presetSelect.value !== 'custom') {
+      finalNote = presetSelect.value;
+    } else {
+      finalNote = txtInput.value.trim();
+    }
+    
+    log.note = finalNote;
+    saveState();
+    renderLog();
+    closeNoteModal();
+  }
+
   // --- NOVÝ CSV EXPORT ---
   function exportCSVFile() {
     const expMissing = document.getElementById('expMissing').checked;
@@ -348,7 +445,6 @@
 
     let toExport = appState.logs.filter(l => l.folder === appState.activeFolder);
     
-    // Filtrace podle zaškrtávacích políček
     toExport = toExport.filter(l => {
       if (l.status === 'MISSING') return expMissing;
       if (l.status === 'MULTI' || l.status === 'DENIED') return expDenied;
@@ -359,28 +455,24 @@
 
     if (toExport.length === 0) return alert("S tímto filtrem nebyly nalezeny žádné záznamy k exportu.");
 
-    // BOM značka pro to, aby český Excel poznal UTF-8 a neničil háčky
     let csvContent = "\uFEFF"; 
-    // Oddělovač středník pro nativní český Excel
-    csvContent += "Pozice_v_DB;Data_A;Data_B;Data_C;Stav_Chyby;Zpracovano_Odskrtnuto\n";
+    csvContent += "Pozice_v_DB;Data_A;Data_B;Data_C;Stav_Chyby;Poznamka\n";
     
     toExport.forEach(p => {
-       // Vyčištění případných středníků v samotných datech
        let safePos = String(p.dbPosText).replace(/;/g, ",");
        let safeA = String(p.a).replace(/;/g, ",");
        let safeB = String(p.b).replace(/;/g, ",");
        let safeC = String(p.c).replace(/;/g, ",");
        let safeStatus = String(p.statusText).replace(/;/g, ",");
-       let isChecked = p.checked ? 'Ano' : 'Ne';
+       let safeNote = String(p.note || "").replace(/;/g, ",");
        
-       csvContent += `${safePos};${safeA};${safeB};${safeC};${safeStatus};${isChecked}\n`;
+       csvContent += `${safePos};${safeA};${safeB};${safeC};${safeStatus};${safeNote}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     
-    // Vytvoření jména souboru bez mezer
     const safeFolderName = appState.activeFolder.replace(/\s+/g, '_');
     const dateStr = new Date().toISOString().slice(0,10);
     
@@ -393,7 +485,6 @@
   
   function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
 
-  // Init
   loadState();
 </script>
 </body>
