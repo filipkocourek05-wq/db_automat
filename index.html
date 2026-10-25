@@ -204,7 +204,7 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // Zpracování chybové/zamítnuté pozice od makropadu (přeskočí cyklus čekání na data A/B)
+      // Zpracování chybové/zamítnuté pozice od makropadu
       if (val.startsWith("ERR") || val.startsWith("DNY")) {
         const isDeny = val.startsWith("DNY");
         const posNum = val.replace("ERR", "").replace("DNY", "");
@@ -231,14 +231,21 @@
         const tempB = val; waitingForB = false;
         const result = evaluateLookup(tempA, tempB);
         
-        if (result.status === "MISSING" || result.status === "MULTI" || result.status === "DUP") {
+        // Změna: DUP už nevyvolá SKIP, bere se jako normální zadání
+        if (result.status === "MISSING" || result.status === "MULTI") {
           sendToMacro("SKIP");
           stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI Z DB`;
           stepLabel.style.color = "#ef4444";
         } else {
+          // Zpracování pro OK i DUP
           sendToMacro("OK");
-          stepLabel.textContent = "OK -> DATA C OZNAČENA PRO CTRL+C";
-          stepLabel.style.color = "#22c55e";
+          if (result.status === "DUP") {
+            stepLabel.textContent = "DUPLICITA -> DATA C OZNAČENA PRO CTRL+C";
+            stepLabel.style.color = "var(--dup)";
+          } else {
+            stepLabel.textContent = "OK -> DATA C OZNAČENA PRO CTRL+C";
+            stepLabel.style.color = "#22c55e";
+          }
           ioInput.value = result.outputC; ioInput.select();
         }
       }
@@ -273,7 +280,7 @@
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
       dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText,
-      checked: (status === "OK") 
+      checked: (status === "OK" || status === "DUP") // Zaškrtnuto u OK i DUP
     };
     appState.logs.unshift(newLog); 
     saveState(); updateStats(); renderLog();
@@ -294,7 +301,7 @@
     const onlyErr = document.getElementById('onlyErrors').checked;
     const tbody = document.getElementById('logBody'); tbody.innerHTML = "";
     let curLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
-    if (onlyErr) curLogs = curLogs.filter(l => l.status !== 'OK');
+    if (onlyErr) curLogs = curLogs.filter(l => l.status !== 'OK' && l.status !== 'DUP');
 
     for (const item of curLogs) {
       const tr = document.createElement('tr'); tr.className = `row-${item.status}`;
@@ -335,7 +342,7 @@
   }
   
   function exportProblemsCSV() {
-    const probs = appState.logs.filter(l => l.folder === appState.activeFolder && l.status !== 'OK');
+    const probs = appState.logs.filter(l => l.folder === appState.activeFolder && l.status !== 'OK' && l.status !== 'DUP');
     if (probs.length === 0) return alert("Žádné problémové položky ve složce!");
     const text = "Pozice_v_DB\tData_A\tData_B\tData_C\tProblem\tZpracovano\n" + 
       probs.map(p => `${p.dbPosText}\t${p.a}\t${p.b}\t${p.c}\t${p.statusText}\t${p.checked ? 'Ano' : 'Ne'}`).join("\n");
