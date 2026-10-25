@@ -104,7 +104,6 @@
   let waitingForB = false;
   let tempA = "";
   let lastValidC = ""; 
-  let seenCounts = {};
 
   // --- SPRÁVA STAVU (LOCAL STORAGE) ---
   let appState = {
@@ -205,12 +204,11 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // Zpracování chybové/zamítnuté pozice od makropadu
+      // Zpracování chybové/zamítnuté pozice od makropadu (přeskočí cyklus čekání na data A/B)
       if (val.startsWith("ERR") || val.startsWith("DNY")) {
         const isDeny = val.startsWith("DNY");
         const posNum = val.replace("ERR", "").replace("DNY", "");
         
-        // Najde poslední log v aktuální složce a aktualizuje ho
         let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
         if (currentFolderLogs.length > 0) {
           let lastLog = currentFolderLogs[0];
@@ -235,7 +233,7 @@
         
         if (result.status === "MISSING" || result.status === "MULTI" || result.status === "DUP") {
           sendToMacro("SKIP");
-          stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI`;
+          stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI Z DB`;
           stepLabel.style.color = "#ef4444";
         } else {
           sendToMacro("OK");
@@ -249,29 +247,37 @@
 
   function evaluateLookup(valA, valB) {
     const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
-    const key = `${normA}|||${normB}`;
-    seenCounts[key] = (seenCounts[key] || 0) + 1; const count = seenCounts[key];
+    
+    // Zjištění počtu výskytů pouze na základě aktuálně zobrazeného logu ve složce
+    const existingLogs = appState.logs.filter(l => l.folder === appState.activeFolder && l.a.toLowerCase() === normA && l.b.toLowerCase() === normB);
+    const count = existingLogs.length + 1; // +1 pro tuto právě vkládanou položku
+
     const matches = dbData.filter(item => item.a.toLowerCase() === normA && item.b.toLowerCase() === normB);
+    const uniqueF = [...new Set(matches.map(m => m.f))];
 
     let status = "OK"; let statusText = "OK"; let outputC = "";
+    const fallback = document.getElementById('fallbackVal').value;
+
     if (matches.length === 0) {
-      status = "MISSING"; outputC = lastValidC !== "" ? lastValidC : document.getElementById('fallbackVal').value; statusText = "CHYBÍ V EXCELU";
+      status = "MISSING"; outputC = lastValidC !== "" ? lastValidC : fallback; statusText = "CHYBÍ V EXCELU";
     } else if (matches.length > 1) {
       status = "MULTI"; outputC = matches[0].f; lastValidC = outputC; statusText = `VÍCE SHOD (${matches.length}x)`;
     } else {
       outputC = matches[0].f; lastValidC = outputC;
       if (count > 1) { status = "DUP"; statusText = `DUPLICITA (${count}x)`; }
     }
+    
     if (status !== "DUP" && count > 1) statusText += ` [Opak. ${count}x]`;
 
     // Vytvoření nového logu
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
       dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText,
-      checked: (status === "OK") // Defaultně zaškrtnuto jen pokud je to OK
+      checked: (status === "OK") 
     };
-    appState.logs.unshift(newLog); // Přidá na začátek
+    appState.logs.unshift(newLog); 
     saveState(); updateStats(); renderLog();
+    
     return { status: status, outputC: outputC };
   }
 
@@ -315,7 +321,19 @@
     saveState(); updateStats(); renderLog();
   }
 
-  function resetCycle() { waitingForB = false; tempA = ""; curAEl.textContent = "-"; ioInput.value = ""; stepLabel.textContent = "ČEKÁM NA DATA A"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); }
+  function resetCycle() { 
+    waitingForB = false; tempA = ""; curAEl.textContent = "-"; 
+    ioInput.value = ""; stepLabel.textContent = "ČEKÁM NA DATA A"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
+  }
+  
+  function clearLog() {
+    if (!confirm("Opravdu vymazat celý log této složky?")) return;
+    appState.logs = appState.logs.filter(l => l.folder !== appState.activeFolder);
+    lastValidC = "";
+    document.getElementById('nextSeqNum').value = 1;
+    saveState(); resetCycle(); updateStats(); renderLog();
+  }
+  
   function exportProblemsCSV() {
     const probs = appState.logs.filter(l => l.folder === appState.activeFolder && l.status !== 'OK');
     if (probs.length === 0) return alert("Žádné problémové položky ve složce!");
@@ -323,6 +341,7 @@
       probs.map(p => `${p.dbPosText}\t${p.a}\t${p.b}\t${p.c}\t${p.statusText}\t${p.checked ? 'Ano' : 'Ne'}`).join("\n");
     navigator.clipboard.writeText(text).then(() => alert("Kopírováno do schránky!"));
   }
+  
   function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
 
   // Init
