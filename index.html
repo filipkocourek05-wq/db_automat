@@ -69,7 +69,7 @@
           <option value="ok">Všechny se stavem OK</option>
           <option value="custom">Vybrané pozice...</option>
         </select>
-        <input type="text" id="writeCustomPos" placeholder="např. 1, 3, 8" style="display:none; width: 100px;" title="Zadej čísla pozic oddělená čárkou">
+        <input type="text" id="writeCustomPos" placeholder="např. 1, 3, 8" style="display:none; width: 100px;" title="Zadej čísla pozic z DB oddělená čárkou">
         <button onclick="startWriteCycle()" style="flex:1; background:var(--warn); color:black;">✍️ Zapsat</button>
       </div>
 
@@ -234,7 +234,6 @@
   }
   async function sendToMacro(cmd) { if (serialWriter) await serialWriter.write(cmd + "\n"); }
 
-  // --- COMMANDER FUNKCE: SCROLL & EXTRAKT ---
   function testGoToItem() {
     const N = parseInt(document.getElementById('dbTotalItems').value, 10);
     const X = parseInt(document.getElementById('testTargetItem').value, 10);
@@ -264,7 +263,6 @@
     sendToMacro(`READ_BATCH:${startItem}:${batchEndItem}:${totalTargetItems}`);
   }
 
-  // --- COMMANDER FUNKCE: ZÁPIS DO DB ---
   function toggleWriteCustom() {
     document.getElementById('writeCustomPos').style.display = document.getElementById('writeModeSelect').value === 'custom' ? 'block' : 'none';
   }
@@ -290,11 +288,11 @@
 
     if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis (Zkontroluj stav OK nebo zadaná čísla).");
 
-    // Seřazení fronty podle pozice vzestupně (aby makropad nejezdil zmateně nahoru-dolů)
+    // ŘAZENÍ: Řadíme primárně podle fyzického řádku (listIndex), aby makro jelo hezky dolů
     writeQueue.sort((a, b) => {
-       let posA = parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
-       let posB = parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
-       return posA - posB;
+       let idxA = a.listIndex || parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
+       let idxB = b.listIndex || parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
+       return idxA - idxB;
     });
 
     writeIndex = 0;
@@ -313,21 +311,21 @@
 
     let item = writeQueue[writeIndex];
     let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, ''));
+    
+    // Klíčová oprava: Posíláme makropadu FYZICKÝ ŘÁDEK z paměti, nikoliv ID Pozice
+    let targetRow = item.listIndex || posNum; 
 
-    // Příprava dat pro Makropad do schránky
     const ioBox = document.getElementById('macroIO');
     ioBox.value = item.c;
     ioBox.focus();
     ioBox.select(); 
 
-    document.getElementById('stepLabel').textContent = `ZAPISUJI POZICI ${posNum} (Čekám na Tl. 4 nebo 5)...`;
+    document.getElementById('stepLabel').textContent = `ZAPISUJI POZICI DB ${posNum} (Řádek: ${targetRow})...`;
     document.getElementById('stepLabel').style.color = "var(--warn)";
 
-    // Odeslání povelu k zápisu jedné položky
-    sendToMacro(`WRITE_ITEM:${posNum}:${totalTargetItems}`);
+    sendToMacro(`WRITE_ITEM:${targetRow}:${totalTargetItems}`);
   }
 
-  // --- ZPRACOVÁNÍ VSTUPU OD MAKROPADU ---
   const ioInput = document.getElementById('macroIO');
   const stepLabel = document.getElementById('stepLabel');
   const curAEl = document.getElementById('curA');
@@ -377,7 +375,7 @@
         } else if (commanderState === 1) {
           tempB = val; commanderState = 2;
         } else if (commanderState === 2) {
-          evaluateLookupAndLog(tempA, tempB, val); // val = pozice
+          evaluateLookupAndLog(tempA, tempB, val); 
           commanderState = 0; 
           
           currentTargetItem++;
@@ -392,7 +390,7 @@
         return;
       }
 
-      // Původní manuální režim (Klávesou 4 nebo 5 v Makropadu)
+      // Původní manuální režim 
       if (!waitingForB) {
         tempA = val; waitingForB = true; 
         curAEl.textContent = tempA || "(prázdné)";
@@ -455,6 +453,7 @@
 
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
+      listIndex: currentTargetItem, // TOTO UMOŽNÍ SPRÁVNÉ SCROLLOVÁNÍ
       dbPosText: "Pozice: " + posVal, a: valA, b: valB, c: outputC, status: status, statusText: statusText, note: ""
     };
     appState.logs.unshift(newLog); 
@@ -482,6 +481,7 @@
 
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
+      listIndex: null, // Pro manuální režim pořadí řádku neznáme
       dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText, note: ""
     };
     appState.logs.unshift(newLog); 
