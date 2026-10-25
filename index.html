@@ -148,13 +148,16 @@
   let dbData = [];
   let currentEditingLogId = null;
 
-  // Stav cyklu čtení
+  // Stav cyklu čtení (COMMANDER mód)
   let readingActive = false;
   let currentTargetItem = 1;
   let totalTargetItems = 1;
   let tempA = "";
   let tempB = "";
   let lastValidC = ""; 
+
+  // Proměnné pro starý MANUÁLNÍ mód
+  let waitingForB = false;
 
   let appState = {
     folders: ["Výchozí složka"],
@@ -242,15 +245,18 @@
     sendToMacro(`READ_ITEM:${currentTargetItem}:${totalTargetItems}`);
   }
 
-  // --- ZPRACOVÁNÍ DAT OD MAKROPADU ---
+  // --- ZPRACOVÁNÍ VSTUPU (KLÁVESNICE) ---
   const ioInput = document.getElementById('macroIO');
+  const stepLabel = document.getElementById('stepLabel');
+  const curAEl = document.getElementById('curA');
+
   ioInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // Stará ruční DNY/ERR logika pro jistotu ponechána
+      // 1. Zpracování chyby pro starý manuální režim (zápis DNY / ERR)
       if (val.startsWith("ERR") || val.startsWith("DNY")) {
         const isDeny = val.startsWith("DNY");
         const posNum = val.replace("ERR", "").replace("DNY", "");
@@ -261,32 +267,68 @@
           if (isDeny) { lastLog.status = "DENIED"; lastLog.statusText = "ZAMÍTNUTO (Ruční Deny)"; }
           saveState(); renderLog(); updateStats();
         }
+        resetCycle(); // Reset pro další zápisový cyklus
         return;
       }
 
-      // Nová Commander logika s jasnými prefixy
+      // 2. Nová Commander logika (čtení s prefixy D_A, D_B, D_POS)
       if (val.startsWith("D_A:")) {
         tempA = val.replace("D_A:", "").trim();
+        return;
       } 
       else if (val.startsWith("D_B:")) {
         tempB = val.replace("D_B:", "").trim();
+        return;
       } 
       else if (val.startsWith("D_POS:")) {
         const posStr = val.replace("D_POS:", "").trim();
         evaluateLookupAndLog(tempA, tempB, posStr);
         
-        // Zacyklení
+        // Zacyklení pro další položku
         if (readingActive) {
           currentTargetItem++;
           if (currentTargetItem <= totalTargetItems) {
-            document.getElementById('stepLabel').textContent = `ČTU POLOŽKU ${currentTargetItem} z ${totalTargetItems}...`;
+            stepLabel.textContent = `ČTU POLOŽKU ${currentTargetItem} z ${totalTargetItems}...`;
             sendToMacro(`READ_ITEM:${currentTargetItem}:${totalTargetItems}`);
           } else {
             readingActive = false;
-            document.getElementById('stepLabel').textContent = "HOTOVO: Čtení dokončeno.";
-            document.getElementById('stepLabel').style.color = "var(--ok)";
+            stepLabel.textContent = "HOTOVO: Čtení dokončeno.";
+            stepLabel.style.color = "var(--ok)";
             alert("Čtení všech položek bylo dokončeno!");
           }
+        }
+        return;
+      }
+
+      // 3. Původní Zápisový/Manuální režim (když makropad posílá pouze surový text)
+      if (!waitingForB) {
+        tempA = val; 
+        waitingForB = true; 
+        curAEl.textContent = tempA || "(prázdné)";
+        stepLabel.textContent = "ČEKÁM NA DATA B"; 
+        stepLabel.style.color = "#f59e0b";
+      } else {
+        const tempBVal = val; 
+        waitingForB = false;
+        
+        // Zavolá starou funkci, která vytvoří log "Zjišťuji..." a nečeká na D_POS
+        const result = evaluateLookupManual(tempA, tempBVal);
+        
+        if (result.status === "MISSING" || result.status === "MULTI") {
+          sendToMacro("SKIP");
+          stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI Z DB`;
+          stepLabel.style.color = "#ef4444";
+        } else {
+          sendToMacro("OK");
+          if (result.status === "DUP") {
+            stepLabel.textContent = "DUPLICITA -> DATA C OZNAČENA PRO CTRL+C";
+            stepLabel.style.color = "var(--dup)";
+          } else {
+            stepLabel.textContent = "OK -> DATA C OZNAČENA PRO CTRL+C";
+            stepLabel.style.color = "#22c55e";
+          }
+          ioInput.value = result.outputC; 
+          ioInput.select();
         }
       }
     }
@@ -306,6 +348,7 @@
     document.getElementById('excelStatus').innerHTML = `Načteno <b>${totalRows}</b> řádků. Aktivních: <b style="color:var(--ok)">${dbData.length}</b>.`;
   }
 
+  // Funkce pro COMMANDER režim (Zná pozici hned z cyklu)
   function evaluateLookupAndLog(valA, valB, posVal) {
     const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
     const existingLogs = appState.logs.filter(l => l.folder === appState.activeFolder && l.a.toLowerCase() === normA && l.b.toLowerCase() === normB);
@@ -331,6 +374,41 @@
     };
     appState.logs.unshift(newLog); 
     saveState(); updateStats(); renderLog();
+  }
+
+  // Původní funkce pro starý MANUÁLNÍ režim (Nejprve zapíše "Zjišťuji...")
+  function evaluateLookupManual(valA, valB) {
+    const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
+    const existingLogs = appState.logs.filter(l => l.folder === appState.activeFolder && l.a.toLowerCase() === normA && l.b.toLowerCase() === normB);
+    const count = existingLogs.length + 1;
+    const matches = dbData.filter(item => item.a.toLowerCase() === normA && item.b.toLowerCase() === normB);
+
+    let status = "OK"; let statusText = "OK"; let outputC = "";
+    const fallback = document.getElementById('fallbackVal').value;
+
+    if (matches.length === 0) {
+      status = "MISSING"; outputC = lastValidC !== "" ? lastValidC : fallback; statusText = "CHYBÍ V EXCELU";
+    } else if (matches.length > 1) {
+      status = "MULTI"; outputC = matches[0].f; lastValidC = outputC; statusText = `VÍCE SHOD (${matches.length}x)`;
+    } else {
+      outputC = matches[0].f; lastValidC = outputC;
+      if (count > 1) { status = "DUP"; statusText = `DUPLICITA (${count}x)`; }
+    }
+    if (status !== "DUP" && count > 1) statusText += ` [Opak. ${count}x]`;
+
+    const newLog = {
+      id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
+      dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText, note: ""
+    };
+    appState.logs.unshift(newLog); 
+    saveState(); updateStats(); renderLog();
+    
+    return { status: status, outputC: outputC };
+  }
+
+  function resetCycle() { 
+    waitingForB = false; tempA = ""; curAEl.textContent = "-"; 
+    ioInput.value = ""; stepLabel.textContent = "PŘIPRAVENO (Čekám na data)"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
   }
 
   // --- LOGOVÁNÍ A UI ---
