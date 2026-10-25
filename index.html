@@ -6,7 +6,7 @@
 <style>
   :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --muted: #94a3b8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; --dup: #a855f7; --accent: #38bdf8; }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 420px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 430px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
   .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; overflow: hidden; position: relative; }
   h2, h3 { margin: 0; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .macro-target-box { background: #020617; border: 3px solid var(--accent); border-radius: 8px; padding: 12px; text-align: center; }
@@ -30,7 +30,7 @@
   .pill { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
   .pill-OK { background: var(--ok); color: #000; } .pill-MISSING { background: var(--err); color: #fff; } .pill-MULTI, .pill-DENIED { background: var(--warn); color: #000; } .pill-DUP { background: var(--dup); color: #fff; }
   .row-flex { display: flex; gap: 8px; align-items: center; }
-  input[type="text"], input[type="number"], select { background: #0f172a; border: 1px solid #334155; color: #fff; padding: 6px 8px; border-radius: 4px; width: 100%; font-size: 12px;}
+  input[type="text"], input[type="number"], select { background: #0f172a; border: 1px solid #334155; color: #fff; padding: 4px 6px; border-radius: 4px; width: 100%; font-size: 12px;}
   .del-btn { cursor: pointer; color: var(--err); font-weight: bold; font-size: 14px; background: none; border: none; padding: 0; }
   .del-btn:hover { color: #fca5a5; }
   .export-panel { background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
@@ -52,14 +52,20 @@
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
     <h2>2. Velení Makropadu (Commander)</h2>
     <div class="commander-panel">
-      <div class="row-flex">
-        <label style="font-size:12px; white-space:nowrap;">Počet položek v DB:</label>
-        <input type="number" id="dbTotalItems" value="50" min="1" style="width: 70px;">
-        <button onclick="startReadingCycle()" style="flex:1; background:var(--ok);">🔍 Extrakt Dat</button>
+      <!-- Nový panel pro dávkové spouštění -->
+      <div class="row-flex" style="gap:4px;">
+        <label style="font-size:11px; white-space:nowrap;">Celkem:</label>
+        <input type="number" id="dbTotalItems" value="50" min="1" style="width: 50px;">
+        <label style="font-size:11px; white-space:nowrap; margin-left:4px;">Od:</label>
+        <input type="number" id="batchStart" value="1" min="1" style="width: 50px;">
+        <label style="font-size:11px; white-space:nowrap; margin-left:4px;">Do:</label>
+        <input type="number" id="batchEnd" value="50" min="1" style="width: 50px;">
+        <button onclick="startReadingCycle()" style="flex:1; background:var(--ok);">🔍 Extrakt</button>
       </div>
+      
       <div class="row-flex" style="margin-top: 4px;">
-        <label style="font-size:12px; white-space:nowrap; color:var(--muted);">Skok na pol.:</label>
-        <input type="number" id="testTargetItem" value="43" min="1" style="width: 70px;">
+        <label style="font-size:11px; white-space:nowrap; color:var(--muted);">Skok na pol.:</label>
+        <input type="number" id="testTargetItem" value="43" min="1" style="width: 50px;">
         <button class="secondary" onclick="testGoToItem()" style="flex:1;">Provést Scroll Test</button>
       </div>
       <div class="row-flex" style="margin-top: 4px;">
@@ -148,16 +154,16 @@
   let dbData = [];
   let currentEditingLogId = null;
 
-  // Stav cyklu čtení (COMMANDER mód)
+  // Dávkové čtení (COMMANDER mód)
   let readingActive = false;
-  let commanderState = 0; // 0 = Čeká na A, 1 = Čeká na B, 2 = Čeká na Pozici
+  let commanderState = 0; 
   let currentTargetItem = 1;
+  let batchEndItem = 1;
   let totalTargetItems = 1;
   let tempA = "";
   let tempB = "";
   let lastValidC = ""; 
 
-  // Proměnné pro starý MANUÁLNÍ mód
   let waitingForB = false;
 
   let appState = {
@@ -237,17 +243,25 @@
     if (dbData.length === 0) return alert("Nejprve načti Excel!");
     
     totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
-    currentTargetItem = 1;
+    let startItem = parseInt(document.getElementById('batchStart').value, 10);
+    batchEndItem = parseInt(document.getElementById('batchEnd').value, 10);
+    
+    if(startItem < 1) startItem = 1;
+    if(batchEndItem > totalTargetItems) batchEndItem = totalTargetItems;
+    if(startItem > batchEndItem) return alert("Začátek musí být menší nebo roven konci!");
+
+    currentTargetItem = startItem;
     readingActive = true;
     commanderState = 0;
     tempA = ""; tempB = "";
     
-    document.getElementById('stepLabel').textContent = `ČTU POLOŽKU ${currentTargetItem} z ${totalTargetItems}...`;
+    document.getElementById('stepLabel').textContent = `ČTU POLOŽKU ${currentTargetItem} (Cíl: ${batchEndItem})...`;
     document.getElementById('stepLabel').style.color = "var(--accent)";
-    sendToMacro(`READ_ITEM:${currentTargetItem}:${totalTargetItems}`);
+    // Nový povel DÁVKY
+    sendToMacro(`READ_BATCH:${startItem}:${batchEndItem}:${totalTargetItems}`);
   }
 
-  // --- ZPRACOVÁNÍ VSTUPU (KLÁVESNICE) ---
+  // --- ZPRACOVÁNÍ VSTUPU ---
   const ioInput = document.getElementById('macroIO');
   const stepLabel = document.getElementById('stepLabel');
   const curAEl = document.getElementById('curA');
@@ -258,7 +272,7 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // 1. Zpracování chyby pro starý manuální režim (zápis DNY / ERR)
+      // Zpracování DNY a ERR pro původní manuální mód
       if (val.startsWith("ERR") || val.startsWith("DNY")) {
         const isDeny = val.startsWith("DNY");
         const posNum = val.replace("ERR", "").replace("DNY", "");
@@ -273,7 +287,7 @@
         return;
       }
 
-      // 2. Nová Commander logika (Stroj počítá kroky: 0=A, 1=B, 2=Pozice)
+      // Nová Commander logika (Dávka bez prefixů)
       if (readingActive) {
         if (commanderState === 0) {
           tempA = val;
@@ -282,24 +296,23 @@
           tempB = val;
           commanderState = 2;
         } else if (commanderState === 2) {
-          evaluateLookupAndLog(tempA, tempB, val); // val je zde číslo pozice
-          commanderState = 0; // Reset pro další položku
+          evaluateLookupAndLog(tempA, tempB, val); // val = pozice
+          commanderState = 0; 
           
           currentTargetItem++;
-          if (currentTargetItem <= totalTargetItems) {
-            stepLabel.textContent = `ČTU POLOŽKU ${currentTargetItem} z ${totalTargetItems}...`;
-            sendToMacro(`READ_ITEM:${currentTargetItem}:${totalTargetItems}`);
+          if (currentTargetItem <= batchEndItem) {
+            stepLabel.textContent = `ČTU POLOŽKU ${currentTargetItem} (Cíl: ${batchEndItem})...`;
+            // Neposíláme žádný další povel, makropad v dávce pokračuje sám!
           } else {
             readingActive = false;
-            stepLabel.textContent = "HOTOVO: Čtení dokončeno.";
+            stepLabel.textContent = "HOTOVO: Dávkové čtení dokončeno.";
             stepLabel.style.color = "var(--ok)";
-            alert("Čtení všech položek bylo dokončeno!");
           }
         }
         return;
       }
 
-      // 3. Původní Zápisový/Manuální režim
+      // Původní manuální režim (Klávesou 4 nebo 5 v Makropadu)
       if (!waitingForB) {
         tempA = val; 
         waitingForB = true; 
@@ -346,7 +359,6 @@
     document.getElementById('excelStatus').innerHTML = `Načteno <b>${totalRows}</b> řádků. Aktivních: <b style="color:var(--ok)">${dbData.length}</b>.`;
   }
 
-  // Funkce pro COMMANDER režim (Zná pozici rovnou z cyklu)
   function evaluateLookupAndLog(valA, valB, posVal) {
     const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
     const existingLogs = appState.logs.filter(l => l.folder === appState.activeFolder && l.a.toLowerCase() === normA && l.b.toLowerCase() === normB);
@@ -374,7 +386,6 @@
     saveState(); updateStats(); renderLog();
   }
 
-  // Původní funkce pro starý MANUÁLNÍ režim (Nejprve zapíše "Zjišťuji...")
   function evaluateLookupManual(valA, valB) {
     const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
     const existingLogs = appState.logs.filter(l => l.folder === appState.activeFolder && l.a.toLowerCase() === normA && l.b.toLowerCase() === normB);
@@ -410,7 +421,6 @@
     ioInput.value = ""; stepLabel.textContent = "PŘIPRAVENO (Čekám na data)"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
   }
 
-  // --- LOGOVÁNÍ A UI ---
   function updateStats() {
     const curLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
     document.getElementById('stOk').textContent = curLogs.filter(l => l.status === 'OK').length;
@@ -448,7 +458,6 @@
 
   function deleteLog(id) { appState.logs = appState.logs.filter(l => l.id !== id); saveState(); updateStats(); renderLog(); }
   
-  // --- POZNÁMKY (MODAL) ---
   function openNoteModal(id) {
     const log = appState.logs.find(l => l.id === id);
     if (!log) return;
@@ -490,7 +499,6 @@
     saveState(); renderLog(); closeNoteModal();
   }
 
-  // --- CSV EXPORT ---
   function exportCSVFile() {
     const expMissing = document.getElementById('expMissing').checked;
     const expDenied = document.getElementById('expDenied').checked;
