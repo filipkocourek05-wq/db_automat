@@ -6,17 +6,18 @@
 <style>
   :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --muted: #94a3b8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; --dup: #a855f7; --accent: #38bdf8; }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 380px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 420px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
   .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; overflow: hidden; position: relative; }
   h2, h3 { margin: 0; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .macro-target-box { background: #020617; border: 3px solid var(--accent); border-radius: 8px; padding: 12px; text-align: center; }
   .macro-target-box label { display: block; font-size: 12px; color: var(--accent); margin-bottom: 6px; font-weight: bold; }
   #macroIO { width: 100%; font-size: 20px; font-weight: bold; padding: 12px; text-align: center; background: #0f172a; color: #fff; border: 2px dashed #475569; border-radius: 6px; outline: none; }
-  textarea { width: 100%; height: 70px; background: #0f172a; color: var(--text); border: 1px solid #334155; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 12px; resize: none; }
+  textarea { width: 100%; height: 60px; background: #0f172a; color: var(--text); border: 1px solid #334155; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 12px; resize: none; }
   button { background: var(--accent); color: #020617; border: none; padding: 6px 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.15s; font-size: 12px; }
   button:hover { opacity: 0.9; }
   button.secondary { background: #334155; color: var(--text); }
   button.danger { background: var(--err); color: #fff; }
+  .commander-panel { background: #020617; border: 1px solid #334155; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; }
   .stat-item { background: #0f172a; padding: 8px 10px; border-radius: 6px; border-left: 4px solid var(--muted); }
   .stat-item.ok { border-color: var(--ok); } .stat-item.err { border-color: var(--err); } .stat-item.warn { border-color: var(--warn); } .stat-item.dup { border-color: var(--dup); }
@@ -33,38 +34,50 @@
   .del-btn { cursor: pointer; color: var(--err); font-weight: bold; font-size: 14px; background: none; border: none; padding: 0; }
   .del-btn:hover { color: #fca5a5; }
   .export-panel { background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
-  
-  /* Modal pro poznámky */
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
   .modal-box { background: var(--panel); border: 1px solid #334155; border-radius: 8px; padding: 20px; width: 400px; max-width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card" style="overflow-y: auto;">
     <div class="row-flex" style="justify-content:space-between;">
       <h2>1. USB Makropad</h2>
       <button id="btnConnect" onclick="connectSerial()" style="background:var(--err); color:#fff;">Nepřipojeno (Klikni)</button>
     </div>
     <div class="macro-target-box">
-      <label id="stepLabel">ČEKÁM NA DATA A (Vlož a dej Enter)</label>
+      <label id="stepLabel">PŘIPRAVENO (Přijímám data od makropadu)</label>
       <input type="text" id="macroIO" placeholder="SEM NAKALIBRUJ BOD 10" autocomplete="off">
     </div>
-    <div class="row-flex" style="justify-content: space-between; font-size: 12px;">
-      <span>Rozpracované A: <strong id="curA" style="color:var(--accent)">-</strong></span>
-      <button class="secondary" onclick="resetCycle()">Reset cyklu</button>
-    </div>
+
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
-    <h2>2. Import z Excelu</h2>
+    <h2>2. Velení Makropadu (Commander)</h2>
+    <div class="commander-panel">
+      <div class="row-flex">
+        <label style="font-size:12px; white-space:nowrap;">Počet položek v DB:</label>
+        <input type="number" id="dbTotalItems" value="50" min="1" style="width: 70px;">
+        <button onclick="startReadingCycle()" style="flex:1; background:var(--ok);">🔍 Extrakt Dat</button>
+      </div>
+      <div class="row-flex" style="margin-top: 4px;">
+        <label style="font-size:12px; white-space:nowrap; color:var(--muted);">Skok na pol.:</label>
+        <input type="number" id="testTargetItem" value="43" min="1" style="width: 70px;">
+        <button class="secondary" onclick="testGoToItem()" style="flex:1;">Provést Scroll Test</button>
+      </div>
+      <div class="row-flex" style="margin-top: 4px;">
+        <button class="secondary" disabled style="flex:1; opacity:0.5;" title="Work in progress">🗑 Vymazat chybějící (WIP)</button>
+        <button class="secondary" disabled style="flex:1; opacity:0.5;" title="Work in progress">✍️ Zapsat do DB (WIP)</button>
+      </div>
+    </div>
+
+    <hr style="border-color:#334155; width:100%; margin:2px 0;">
+    <h2>3. Import a Nastavení</h2>
     <textarea id="excelInput" placeholder="V Excelu dej Ctrl+A, Ctrl+C, vlož sem (Ctrl+V) a klikni na Načíst..."></textarea>
-    <button onclick="parseExcel()">Načíst Excel (filtr L = Aktuell)</button>
-    <div id="excelStatus" style="font-size: 12px; color: var(--muted);">Zatím nenačtena data.</div>
-    <hr style="border-color:#334155; width:100%; margin:2px 0;">
-    <h2>3. Nastavení</h2>
-    <div style="font-size: 12px; display:flex; flex-direction:column; gap:6px;">
-      <label>Výchozí Data C (pokud chybí hned 1. položka):</label>
-      <input type="text" id="fallbackVal" value="">
+    <div class="row-flex">
+      <button onclick="parseExcel()" style="flex:1;">Načíst Excel (filtr L = Aktuell)</button>
+      <input type="text" id="fallbackVal" placeholder="Výchozí C (Když chybí 1. pol.)" style="width:160px;">
     </div>
-    <div class="stats-grid">
+    <div id="excelStatus" style="font-size: 12px; color: var(--muted);">Zatím nenačtena data.</div>
+    
+    <div class="stats-grid" style="margin-top:8px;">
       <div class="stat-item ok"><span class="stat-val" id="stOk">0</span>Nalezeno (OK)</div>
       <div class="stat-item err"><span class="stat-val" id="stErr">0</span>Chybí (Smazat)</div>
       <div class="stat-item warn"><span class="stat-val" id="stMulti">0</span>Více výsl. / Deny</div>
@@ -115,8 +128,6 @@
   <div id="noteModal" class="modal-overlay">
     <div class="modal-box">
       <h3 style="margin-bottom: 15px;">Přidat / Upravit poznámku</h3>
-      
-      <!-- Roletka zobrazená pouze u DENY -->
       <div id="denyOptionsGroup" style="margin-bottom: 10px; display: none;">
         <label style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px;">Důvod zamítnutí:</label>
         <select id="denyPresetSelect" onchange="handlePresetChange()">
@@ -125,9 +136,7 @@
           <option value="custom">Vlastní poznámka...</option>
         </select>
       </div>
-
       <input type="text" id="noteTextInput" placeholder="Zadej text poznámky..." autocomplete="off">
-      
       <div class="row-flex" style="margin-top: 15px; justify-content: flex-end;">
         <button class="secondary" onclick="closeNoteModal()">Zrušit</button>
         <button onclick="saveNote()">Uložit poznámku</button>
@@ -137,12 +146,16 @@
 
 <script>
   let dbData = [];
-  let waitingForB = false;
-  let tempA = "";
-  let lastValidC = ""; 
   let currentEditingLogId = null;
 
-  // --- SPRÁVA STAVU (LOCAL STORAGE) ---
+  // Stav cyklu čtení
+  let readingActive = false;
+  let currentTargetItem = 1;
+  let totalTargetItems = 1;
+  let tempA = "";
+  let tempB = "";
+  let lastValidC = ""; 
+
   let appState = {
     folders: ["Výchozí složka"],
     activeFolder: "Výchozí složka",
@@ -160,10 +173,8 @@
     renderFolders(); updateStats(); renderLog();
   }
 
-  // --- SLOŽKY ---
   function renderFolders() {
-    const sel = document.getElementById('folderSelect');
-    sel.innerHTML = "";
+    const sel = document.getElementById('folderSelect'); sel.innerHTML = "";
     appState.folders.forEach(f => {
       const opt = document.createElement('option');
       opt.value = f; opt.textContent = f;
@@ -189,7 +200,6 @@
     }
   }
 
-  // --- SÉRIOVÁ KOMUNIKACE ---
   let serialPort; let serialWriter;
   async function connectSerial() {
     try {
@@ -203,20 +213,84 @@
   async function updateMacropadState() {
     const btn = document.getElementById('btnConnect');
     if (serialWriter) {
-      if (dbData.length > 0) {
-        await sendToMacro("READY"); 
-        btn.textContent = "ZAPOJENO (Lze spustit)"; btn.style.background = "var(--ok)"; btn.style.color = "#000";
-      } else {
-        btn.textContent = "USB PŘIPOJENO (Čekám na Excel)"; btn.style.background = "var(--warn)"; btn.style.color = "#000";
-      }
+      await sendToMacro("READY"); 
+      btn.textContent = "ZAPOJENO"; btn.style.background = "var(--ok)"; btn.style.color = "#000";
     }
   }
   async function sendToMacro(cmd) { if (serialWriter) await serialWriter.write(cmd + "\n"); }
 
-  // --- HLAVNÍ LOGIKA ---
+  // --- COMMANDER FUNKCE ---
+  function testGoToItem() {
+    const N = parseInt(document.getElementById('dbTotalItems').value, 10);
+    const X = parseInt(document.getElementById('testTargetItem').value, 10);
+    if (!serialWriter) return alert("Nejprve připoj makropad!");
+    document.getElementById('stepLabel').textContent = `SCROLL TEST: Hledám položku ${X}/${N}...`;
+    sendToMacro(`GOTO:${X}:${N}`);
+  }
+
+  function startReadingCycle() {
+    if (!serialWriter) return alert("Nejprve připoj makropad!");
+    if (dbData.length === 0) return alert("Nejprve načti Excel!");
+    
+    totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
+    currentTargetItem = 1;
+    readingActive = true;
+    tempA = ""; tempB = "";
+    
+    document.getElementById('stepLabel').textContent = `ČTU POLOŽKU ${currentTargetItem} z ${totalTargetItems}...`;
+    document.getElementById('stepLabel').style.color = "var(--accent)";
+    sendToMacro(`READ_ITEM:${currentTargetItem}:${totalTargetItems}`);
+  }
+
+  // --- ZPRACOVÁNÍ DAT OD MAKROPADU ---
   const ioInput = document.getElementById('macroIO');
-  const stepLabel = document.getElementById('stepLabel');
-  const curAEl = document.getElementById('curA');
+  ioInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = ioInput.value.trim();
+      ioInput.value = "";
+
+      // Stará ruční DNY/ERR logika pro jistotu ponechána
+      if (val.startsWith("ERR") || val.startsWith("DNY")) {
+        const isDeny = val.startsWith("DNY");
+        const posNum = val.replace("ERR", "").replace("DNY", "");
+        let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+        if (currentFolderLogs.length > 0) {
+          let lastLog = currentFolderLogs[0];
+          lastLog.dbPosText = "Pozice: " + posNum;
+          if (isDeny) { lastLog.status = "DENIED"; lastLog.statusText = "ZAMÍTNUTO (Ruční Deny)"; }
+          saveState(); renderLog(); updateStats();
+        }
+        return;
+      }
+
+      // Nová Commander logika s jasnými prefixy
+      if (val.startsWith("D_A:")) {
+        tempA = val.replace("D_A:", "").trim();
+      } 
+      else if (val.startsWith("D_B:")) {
+        tempB = val.replace("D_B:", "").trim();
+      } 
+      else if (val.startsWith("D_POS:")) {
+        const posStr = val.replace("D_POS:", "").trim();
+        evaluateLookupAndLog(tempA, tempB, posStr);
+        
+        // Zacyklení
+        if (readingActive) {
+          currentTargetItem++;
+          if (currentTargetItem <= totalTargetItems) {
+            document.getElementById('stepLabel').textContent = `ČTU POLOŽKU ${currentTargetItem} z ${totalTargetItems}...`;
+            sendToMacro(`READ_ITEM:${currentTargetItem}:${totalTargetItems}`);
+          } else {
+            readingActive = false;
+            document.getElementById('stepLabel').textContent = "HOTOVO: Čtení dokončeno.";
+            document.getElementById('stepLabel').style.color = "var(--ok)";
+            alert("Čtení všech položek bylo dokončeno!");
+          }
+        }
+      }
+    }
+  });
 
   function parseExcel() {
     const raw = document.getElementById('excelInput').value;
@@ -230,66 +304,13 @@
     const fbInput = document.getElementById('fallbackVal');
     if (!fbInput.value && dbData.length > 0) fbInput.value = dbData[0].f;
     document.getElementById('excelStatus').innerHTML = `Načteno <b>${totalRows}</b> řádků. Aktivních: <b style="color:var(--ok)">${dbData.length}</b>.`;
-    updateMacropadState(); ioInput.focus();
   }
 
-  ioInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const val = ioInput.value.trim();
-      ioInput.value = "";
-
-      if (val.startsWith("ERR") || val.startsWith("DNY")) {
-        const isDeny = val.startsWith("DNY");
-        const posNum = val.replace("ERR", "").replace("DNY", "");
-        
-        let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
-        if (currentFolderLogs.length > 0) {
-          let lastLog = currentFolderLogs[0];
-          lastLog.dbPosText = "Pozice: " + posNum;
-          if (isDeny) {
-            lastLog.status = "DENIED";
-            lastLog.statusText = "ZAMÍTNUTO (Ruční Deny)";
-          }
-          saveState(); renderLog(); updateStats();
-        }
-        resetCycle();
-        return;
-      }
-
-      if (!waitingForB) {
-        tempA = val; waitingForB = true; curAEl.textContent = tempA || "(prázdné)";
-        stepLabel.textContent = "ČEKÁM NA DATA B"; stepLabel.style.color = "#f59e0b";
-      } else {
-        const tempB = val; waitingForB = false;
-        const result = evaluateLookup(tempA, tempB);
-        
-        if (result.status === "MISSING" || result.status === "MULTI") {
-          sendToMacro("SKIP");
-          stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI Z DB`;
-          stepLabel.style.color = "#ef4444";
-        } else {
-          sendToMacro("OK");
-          if (result.status === "DUP") {
-            stepLabel.textContent = "DUPLICITA -> DATA C OZNAČENA PRO CTRL+C";
-            stepLabel.style.color = "var(--dup)";
-          } else {
-            stepLabel.textContent = "OK -> DATA C OZNAČENA PRO CTRL+C";
-            stepLabel.style.color = "#22c55e";
-          }
-          ioInput.value = result.outputC; ioInput.select();
-        }
-      }
-    }
-  });
-
-  function evaluateLookup(valA, valB) {
+  function evaluateLookupAndLog(valA, valB, posVal) {
     const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
     const existingLogs = appState.logs.filter(l => l.folder === appState.activeFolder && l.a.toLowerCase() === normA && l.b.toLowerCase() === normB);
     const count = existingLogs.length + 1;
-
     const matches = dbData.filter(item => item.a.toLowerCase() === normA && item.b.toLowerCase() === normB);
-    const uniqueF = [...new Set(matches.map(m => m.f))];
 
     let status = "OK"; let statusText = "OK"; let outputC = "";
     const fallback = document.getElementById('fallbackVal').value;
@@ -302,17 +323,14 @@
       outputC = matches[0].f; lastValidC = outputC;
       if (count > 1) { status = "DUP"; statusText = `DUPLICITA (${count}x)`; }
     }
-    
     if (status !== "DUP" && count > 1) statusText += ` [Opak. ${count}x]`;
 
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
-      dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText, note: ""
+      dbPosText: "Pozice: " + posVal, a: valA, b: valB, c: outputC, status: status, statusText: statusText, note: ""
     };
     appState.logs.unshift(newLog); 
     saveState(); updateStats(); renderLog();
-    
-    return { status: status, outputC: outputC };
   }
 
   // --- LOGOVÁNÍ A UI ---
@@ -351,101 +369,58 @@
     }
   }
 
-  function deleteLog(id) {
-    appState.logs = appState.logs.filter(l => l.id !== id);
-    saveState(); updateStats(); renderLog();
-  }
-
-  function resetCycle() { 
-    waitingForB = false; tempA = ""; curAEl.textContent = "-"; 
-    ioInput.value = ""; stepLabel.textContent = "ČEKÁM NA DATA A"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
-  }
+  function deleteLog(id) { appState.logs = appState.logs.filter(l => l.id !== id); saveState(); updateStats(); renderLog(); }
   
   // --- POZNÁMKY (MODAL) ---
   function openNoteModal(id) {
     const log = appState.logs.find(l => l.id === id);
     if (!log) return;
     currentEditingLogId = id;
-    
     const modal = document.getElementById('noteModal');
     const denyGroup = document.getElementById('denyOptionsGroup');
     const presetSelect = document.getElementById('denyPresetSelect');
     const txtInput = document.getElementById('noteTextInput');
-    
     const existingNote = log.note || "";
     
     if (log.status === 'DENIED') {
       denyGroup.style.display = 'block';
       if (existingNote === "Chybí odpovídající testing characteristics" || existingNote === "Vícero testing characteristics na výběr se stejným názvem") {
-        presetSelect.value = existingNote;
-        txtInput.style.display = 'none';
+        presetSelect.value = existingNote; txtInput.style.display = 'none';
       } else if (existingNote === "") {
-        // Automatický default pro DENY
-        presetSelect.value = "Chybí odpovídající testing characteristics";
-        txtInput.style.display = 'none';
+        presetSelect.value = "Chybí odpovídající testing characteristics"; txtInput.style.display = 'none';
       } else {
-        presetSelect.value = "custom";
-        txtInput.style.display = 'block';
-        txtInput.value = existingNote;
+        presetSelect.value = "custom"; txtInput.style.display = 'block'; txtInput.value = existingNote;
       }
     } else {
-      denyGroup.style.display = 'none';
-      txtInput.style.display = 'block';
-      txtInput.value = existingNote;
+      denyGroup.style.display = 'none'; txtInput.style.display = 'block'; txtInput.value = existingNote;
     }
-    
-    modal.style.display = 'flex';
-    if (txtInput.style.display === 'block') txtInput.focus();
+    modal.style.display = 'flex'; if (txtInput.style.display === 'block') txtInput.focus();
   }
 
   function handlePresetChange() {
-    const presetSelect = document.getElementById('denyPresetSelect');
-    const txtInput = document.getElementById('noteTextInput');
-    if (presetSelect.value === 'custom') {
-      txtInput.style.display = 'block';
-      txtInput.focus();
-      txtInput.value = "";
-    } else {
-      txtInput.style.display = 'none';
-    }
+    const presetSelect = document.getElementById('denyPresetSelect'); const txtInput = document.getElementById('noteTextInput');
+    if (presetSelect.value === 'custom') { txtInput.style.display = 'block'; txtInput.focus(); txtInput.value = ""; } 
+    else { txtInput.style.display = 'none'; }
   }
 
-  function closeNoteModal() {
-    document.getElementById('noteModal').style.display = 'none';
-    currentEditingLogId = null;
-  }
-
+  function closeNoteModal() { document.getElementById('noteModal').style.display = 'none'; currentEditingLogId = null; }
   function saveNote() {
     if (!currentEditingLogId) return;
     const log = appState.logs.find(l => l.id === currentEditingLogId);
     if (!log) return;
-
-    const presetSelect = document.getElementById('denyPresetSelect');
-    const txtInput = document.getElementById('noteTextInput');
-    
-    let finalNote = "";
-    if (log.status === 'DENIED' && presetSelect.value !== 'custom') {
-      finalNote = presetSelect.value;
-    } else {
-      finalNote = txtInput.value.trim();
-    }
-    
-    log.note = finalNote;
-    saveState();
-    renderLog();
-    closeNoteModal();
+    const presetSelect = document.getElementById('denyPresetSelect'); const txtInput = document.getElementById('noteTextInput');
+    log.note = (log.status === 'DENIED' && presetSelect.value !== 'custom') ? presetSelect.value : txtInput.value.trim();
+    saveState(); renderLog(); closeNoteModal();
   }
 
-  // --- NOVÝ CSV EXPORT ---
+  // --- CSV EXPORT ---
   function exportCSVFile() {
     const expMissing = document.getElementById('expMissing').checked;
     const expDenied = document.getElementById('expDenied').checked;
     const expDup = document.getElementById('expDup').checked;
     const expOk = document.getElementById('expOk').checked;
 
-    let toExport = appState.logs.filter(l => l.folder === appState.activeFolder);
-    
-    toExport = toExport.filter(l => {
+    let toExport = appState.logs.filter(l => l.folder === appState.activeFolder).filter(l => {
       if (l.status === 'MISSING') return expMissing;
       if (l.status === 'MULTI' || l.status === 'DENIED') return expDenied;
       if (l.status === 'DUP') return expDup;
@@ -454,37 +429,22 @@
     });
 
     if (toExport.length === 0) return alert("S tímto filtrem nebyly nalezeny žádné záznamy k exportu.");
-
-    let csvContent = "\uFEFF"; 
-    csvContent += "Pozice_v_DB;Data_A;Data_B;Data_C;Stav_Chyby;Poznamka\n";
-    
+    let csvContent = "\uFEFFPozice_v_DB;Data_A;Data_B;Data_C;Stav_Chyby;Poznamka\n";
     toExport.forEach(p => {
-       let safePos = String(p.dbPosText).replace(/;/g, ",");
-       let safeA = String(p.a).replace(/;/g, ",");
-       let safeB = String(p.b).replace(/;/g, ",");
-       let safeC = String(p.c).replace(/;/g, ",");
-       let safeStatus = String(p.statusText).replace(/;/g, ",");
-       let safeNote = String(p.note || "").replace(/;/g, ",");
-       
+       let safePos = String(p.dbPosText).replace(/;/g, ","); let safeA = String(p.a).replace(/;/g, ",");
+       let safeB = String(p.b).replace(/;/g, ","); let safeC = String(p.c).replace(/;/g, ",");
+       let safeStatus = String(p.statusText).replace(/;/g, ","); let safeNote = String(p.note || "").replace(/;/g, ",");
        csvContent += `${safePos};${safeA};${safeB};${safeC};${safeStatus};${safeNote}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    
-    const safeFolderName = appState.activeFolder.replace(/\s+/g, '_');
-    const dateStr = new Date().toISOString().slice(0,10);
-    
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Export_${safeFolderName}_${dateStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = `Export_${appState.activeFolder.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
   
   function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
-
   loadState();
 </script>
 </body>
