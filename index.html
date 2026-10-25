@@ -150,6 +150,7 @@
 
   // Stav cyklu čtení (COMMANDER mód)
   let readingActive = false;
+  let commanderState = 0; // 0 = Čeká na A, 1 = Čeká na B, 2 = Čeká na Pozici
   let currentTargetItem = 1;
   let totalTargetItems = 1;
   let tempA = "";
@@ -238,6 +239,7 @@
     totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
     currentTargetItem = 1;
     readingActive = true;
+    commanderState = 0;
     tempA = ""; tempB = "";
     
     document.getElementById('stepLabel').textContent = `ČTU POLOŽKU ${currentTargetItem} z ${totalTargetItems}...`;
@@ -267,25 +269,22 @@
           if (isDeny) { lastLog.status = "DENIED"; lastLog.statusText = "ZAMÍTNUTO (Ruční Deny)"; }
           saveState(); renderLog(); updateStats();
         }
-        resetCycle(); // Reset pro další zápisový cyklus
+        resetCycle();
         return;
       }
 
-      // 2. Nová Commander logika (čtení s prefixy D_A, D_B, D_POS)
-      if (val.startsWith("D_A:")) {
-        tempA = val.replace("D_A:", "").trim();
-        return;
-      } 
-      else if (val.startsWith("D_B:")) {
-        tempB = val.replace("D_B:", "").trim();
-        return;
-      } 
-      else if (val.startsWith("D_POS:")) {
-        const posStr = val.replace("D_POS:", "").trim();
-        evaluateLookupAndLog(tempA, tempB, posStr);
-        
-        // Zacyklení pro další položku
-        if (readingActive) {
+      // 2. Nová Commander logika (Stroj počítá kroky: 0=A, 1=B, 2=Pozice)
+      if (readingActive) {
+        if (commanderState === 0) {
+          tempA = val;
+          commanderState = 1;
+        } else if (commanderState === 1) {
+          tempB = val;
+          commanderState = 2;
+        } else if (commanderState === 2) {
+          evaluateLookupAndLog(tempA, tempB, val); // val je zde číslo pozice
+          commanderState = 0; // Reset pro další položku
+          
           currentTargetItem++;
           if (currentTargetItem <= totalTargetItems) {
             stepLabel.textContent = `ČTU POLOŽKU ${currentTargetItem} z ${totalTargetItems}...`;
@@ -300,7 +299,7 @@
         return;
       }
 
-      // 3. Původní Zápisový/Manuální režim (když makropad posílá pouze surový text)
+      // 3. Původní Zápisový/Manuální režim
       if (!waitingForB) {
         tempA = val; 
         waitingForB = true; 
@@ -311,7 +310,6 @@
         const tempBVal = val; 
         waitingForB = false;
         
-        // Zavolá starou funkci, která vytvoří log "Zjišťuji..." a nečeká na D_POS
         const result = evaluateLookupManual(tempA, tempBVal);
         
         if (result.status === "MISSING" || result.status === "MULTI") {
@@ -348,7 +346,7 @@
     document.getElementById('excelStatus').innerHTML = `Načteno <b>${totalRows}</b> řádků. Aktivních: <b style="color:var(--ok)">${dbData.length}</b>.`;
   }
 
-  // Funkce pro COMMANDER režim (Zná pozici hned z cyklu)
+  // Funkce pro COMMANDER režim (Zná pozici rovnou z cyklu)
   function evaluateLookupAndLog(valA, valB, posVal) {
     const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
     const existingLogs = appState.logs.filter(l => l.folder === appState.activeFolder && l.a.toLowerCase() === normA && l.b.toLowerCase() === normB);
@@ -408,6 +406,7 @@
 
   function resetCycle() { 
     waitingForB = false; tempA = ""; curAEl.textContent = "-"; 
+    readingActive = false; commanderState = 0;
     ioInput.value = ""; stepLabel.textContent = "PŘIPRAVENO (Čekám na data)"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
   }
 
