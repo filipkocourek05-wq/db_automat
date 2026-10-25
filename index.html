@@ -7,7 +7,8 @@
   :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --muted: #94a3b8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; --dup: #a855f7; --accent: #38bdf8; }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
   body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 380px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
-  .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; }
+  /* Přidáno overflow:hidden a min-height:0 pro správné scrollování v CSS Flexboxu */
+  .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; overflow: hidden; }
   h2, h3 { margin: 0; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .macro-target-box { background: #020617; border: 3px solid var(--accent); border-radius: 8px; padding: 12px; text-align: center; }
   .macro-target-box label { display: block; font-size: 12px; color: var(--accent); margin-bottom: 6px; font-weight: bold; }
@@ -21,9 +22,9 @@
   .stat-item { background: #0f172a; padding: 8px 10px; border-radius: 6px; border-left: 4px solid var(--muted); }
   .stat-item.ok { border-color: var(--ok); } .stat-item.err { border-color: var(--err); } .stat-item.warn { border-color: var(--warn); } .stat-item.dup { border-color: var(--dup); }
   .stat-val { font-size: 18px; font-weight: bold; display: block; }
-  .log-container { flex: 1; overflow-y: auto; border: 1px solid #334155; border-radius: 6px; background: #020617; }
+  .log-container { flex: 1; overflow-y: auto; border: 1px solid #334155; border-radius: 6px; background: #020617; min-height: 0; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { position: sticky; top: 0; background: #1e293b; color: var(--muted); text-align: left; padding: 10px; border-bottom: 1px solid #334155; }
+  th { position: sticky; top: 0; background: #1e293b; color: var(--muted); text-align: left; padding: 10px; border-bottom: 1px solid #334155; z-index: 10; }
   td { padding: 8px 10px; border-bottom: 1px solid #1e293b; font-family: Consolas, monospace; vertical-align: middle; }
   tr.row-OK { background: rgba(34, 197, 94, 0.08); } tr.row-MISSING { background: rgba(239, 68, 68, 0.28); color: #fca5a5; font-weight: bold; } tr.row-MULTI { background: rgba(245, 158, 11, 0.25); color: #fde68a; font-weight: bold; } tr.row-DUP { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; } tr.row-DENIED { background: rgba(245, 158, 11, 0.4); color: #fff; font-weight: bold; }
   .pill { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
@@ -33,7 +34,8 @@
   .chk-cell { text-align: center; width: 30px; }
   .del-btn { cursor: pointer; color: var(--err); font-weight: bold; font-size: 14px; background: none; border: none; padding: 0; }
   .del-btn:hover { color: #fca5a5; }
-  input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent); }
+  input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent); margin: 0; vertical-align: middle; }
+  .export-panel { background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -70,17 +72,27 @@
   </div>
 
   <div class="card">
-    <div class="row-flex" style="justify-content: space-between;">
+    <div class="row-flex" style="justify-content: space-between; flex-wrap: wrap; margin-bottom: 4px;">
       <div class="row-flex">
         <select id="folderSelect" onchange="changeFolder()" style="width: 150px;"></select>
         <button onclick="addFolder()">+ Složka</button>
         <button class="danger" onclick="deleteFolder()">Smazat Složku</button>
       </div>
-      <div class="row-flex">
-        <label style="font-size:12px; cursor:pointer;"><input type="checkbox" id="onlyErrors" onchange="renderLog()"> Jen problémové</label>
-        <button class="secondary" onclick="exportProblemsCSV()">Kopírovat chyby</button>
-      </div>
+      <label style="font-size:12px; cursor:pointer;"><input type="checkbox" id="onlyErrors" onchange="renderLog()"> Jen problémové zobrazení</label>
     </div>
+    
+    <!-- Nový panel pro Export logu -->
+    <div class="row-flex export-panel" style="justify-content: space-between;">
+      <div class="row-flex" style="gap: 12px;">
+        <span style="color: var(--muted); font-weight: bold;">Stáhnout jako CSV:</span>
+        <label style="cursor:pointer; color:var(--err);"><input type="checkbox" id="expMissing" checked> Chybí v Excelu</label>
+        <label style="cursor:pointer; color:var(--warn);"><input type="checkbox" id="expDenied" checked> Zamítnuto/Multi</label>
+        <label style="cursor:pointer; color:var(--dup);"><input type="checkbox" id="expDup"> Duplicity</label>
+        <label style="cursor:pointer; color:var(--ok);"><input type="checkbox" id="expOk"> V pořádku (OK)</label>
+      </div>
+      <button class="secondary" onclick="exportCSVFile()" style="padding: 4px 12px; font-size: 13px;">Stáhnout</button>
+    </div>
+
     <div class="log-container">
       <table>
         <thead>
@@ -204,7 +216,6 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // Zpracování chybové/zamítnuté pozice od makropadu
       if (val.startsWith("ERR") || val.startsWith("DNY")) {
         const isDeny = val.startsWith("DNY");
         const posNum = val.replace("ERR", "").replace("DNY", "");
@@ -231,13 +242,11 @@
         const tempB = val; waitingForB = false;
         const result = evaluateLookup(tempA, tempB);
         
-        // Změna: DUP už nevyvolá SKIP, bere se jako normální zadání
         if (result.status === "MISSING" || result.status === "MULTI") {
           sendToMacro("SKIP");
           stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI Z DB`;
           stepLabel.style.color = "#ef4444";
         } else {
-          // Zpracování pro OK i DUP
           sendToMacro("OK");
           if (result.status === "DUP") {
             stepLabel.textContent = "DUPLICITA -> DATA C OZNAČENA PRO CTRL+C";
@@ -254,10 +263,8 @@
 
   function evaluateLookup(valA, valB) {
     const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
-    
-    // Zjištění počtu výskytů pouze na základě aktuálně zobrazeného logu ve složce
     const existingLogs = appState.logs.filter(l => l.folder === appState.activeFolder && l.a.toLowerCase() === normA && l.b.toLowerCase() === normB);
-    const count = existingLogs.length + 1; // +1 pro tuto právě vkládanou položku
+    const count = existingLogs.length + 1;
 
     const matches = dbData.filter(item => item.a.toLowerCase() === normA && item.b.toLowerCase() === normB);
     const uniqueF = [...new Set(matches.map(m => m.f))];
@@ -276,11 +283,10 @@
     
     if (status !== "DUP" && count > 1) statusText += ` [Opak. ${count}x]`;
 
-    // Vytvoření nového logu
     const newLog = {
       id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
       dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText,
-      checked: (status === "OK" || status === "DUP") // Zaškrtnuto u OK i DUP
+      checked: (status === "OK" || status === "DUP") 
     };
     appState.logs.unshift(newLog); 
     saveState(); updateStats(); renderLog();
@@ -333,20 +339,56 @@
     ioInput.value = ""; stepLabel.textContent = "ČEKÁM NA DATA A"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
   }
   
-  function clearLog() {
-    if (!confirm("Opravdu vymazat celý log této složky?")) return;
-    appState.logs = appState.logs.filter(l => l.folder !== appState.activeFolder);
-    lastValidC = "";
-    document.getElementById('nextSeqNum').value = 1;
-    saveState(); resetCycle(); updateStats(); renderLog();
-  }
-  
-  function exportProblemsCSV() {
-    const probs = appState.logs.filter(l => l.folder === appState.activeFolder && l.status !== 'OK' && l.status !== 'DUP');
-    if (probs.length === 0) return alert("Žádné problémové položky ve složce!");
-    const text = "Pozice_v_DB\tData_A\tData_B\tData_C\tProblem\tZpracovano\n" + 
-      probs.map(p => `${p.dbPosText}\t${p.a}\t${p.b}\t${p.c}\t${p.statusText}\t${p.checked ? 'Ano' : 'Ne'}`).join("\n");
-    navigator.clipboard.writeText(text).then(() => alert("Kopírováno do schránky!"));
+  // --- NOVÝ CSV EXPORT ---
+  function exportCSVFile() {
+    const expMissing = document.getElementById('expMissing').checked;
+    const expDenied = document.getElementById('expDenied').checked;
+    const expDup = document.getElementById('expDup').checked;
+    const expOk = document.getElementById('expOk').checked;
+
+    let toExport = appState.logs.filter(l => l.folder === appState.activeFolder);
+    
+    // Filtrace podle zaškrtávacích políček
+    toExport = toExport.filter(l => {
+      if (l.status === 'MISSING') return expMissing;
+      if (l.status === 'MULTI' || l.status === 'DENIED') return expDenied;
+      if (l.status === 'DUP') return expDup;
+      if (l.status === 'OK') return expOk;
+      return false;
+    });
+
+    if (toExport.length === 0) return alert("S tímto filtrem nebyly nalezeny žádné záznamy k exportu.");
+
+    // BOM značka pro to, aby český Excel poznal UTF-8 a neničil háčky
+    let csvContent = "\uFEFF"; 
+    // Oddělovač středník pro nativní český Excel
+    csvContent += "Pozice_v_DB;Data_A;Data_B;Data_C;Stav_Chyby;Zpracovano_Odskrtnuto\n";
+    
+    toExport.forEach(p => {
+       // Vyčištění případných středníků v samotných datech
+       let safePos = String(p.dbPosText).replace(/;/g, ",");
+       let safeA = String(p.a).replace(/;/g, ",");
+       let safeB = String(p.b).replace(/;/g, ",");
+       let safeC = String(p.c).replace(/;/g, ",");
+       let safeStatus = String(p.statusText).replace(/;/g, ",");
+       let isChecked = p.checked ? 'Ano' : 'Ne';
+       
+       csvContent += `${safePos};${safeA};${safeB};${safeC};${safeStatus};${isChecked}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    
+    // Vytvoření jména souboru bez mezer
+    const safeFolderName = appState.activeFolder.replace(/\s+/g, '_');
+    const dateStr = new Date().toISOString().slice(0,10);
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Export_${safeFolderName}_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
   
   function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
