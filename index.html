@@ -12,8 +12,8 @@
   .macro-target-box { background: #020617; border: 3px solid var(--accent); border-radius: 8px; padding: 12px; text-align: center; }
   .macro-target-box label { display: block; font-size: 12px; color: var(--accent); margin-bottom: 6px; font-weight: bold; }
   #macroIO { width: 100%; font-size: 20px; font-weight: bold; padding: 12px; text-align: center; background: #0f172a; color: #fff; border: 2px dashed #475569; border-radius: 6px; outline: none; }
-  textarea { width: 100%; height: 75px; background: #0f172a; color: var(--text); border: 1px solid #334155; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 12px; resize: none; }
-  button { background: var(--accent); color: #020617; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.15s; }
+  textarea { width: 100%; height: 70px; background: #0f172a; color: var(--text); border: 1px solid #334155; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 12px; resize: none; }
+  button { background: var(--accent); color: #020617; border: none; padding: 6px 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.15s; font-size: 12px; }
   button:hover { opacity: 0.9; }
   button.secondary { background: #334155; color: var(--text); }
   button.danger { background: var(--err); color: #fff; }
@@ -24,19 +24,23 @@
   .log-container { flex: 1; overflow-y: auto; border: 1px solid #334155; border-radius: 6px; background: #020617; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { position: sticky; top: 0; background: #1e293b; color: var(--muted); text-align: left; padding: 10px; border-bottom: 1px solid #334155; }
-  td { padding: 8px 10px; border-bottom: 1px solid #1e293b; font-family: Consolas, monospace; }
-  tr.row-OK { background: rgba(34, 197, 94, 0.08); } tr.row-MISSING { background: rgba(239, 68, 68, 0.28); color: #fca5a5; font-weight: bold; } tr.row-MULTI { background: rgba(245, 158, 11, 0.25); color: #fde68a; font-weight: bold; } tr.row-DUP { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1e293b; font-family: Consolas, monospace; vertical-align: middle; }
+  tr.row-OK { background: rgba(34, 197, 94, 0.08); } tr.row-MISSING { background: rgba(239, 68, 68, 0.28); color: #fca5a5; font-weight: bold; } tr.row-MULTI { background: rgba(245, 158, 11, 0.25); color: #fde68a; font-weight: bold; } tr.row-DUP { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; } tr.row-DENIED { background: rgba(245, 158, 11, 0.4); color: #fff; font-weight: bold; }
   .pill { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
-  .pill-OK { background: var(--ok); color: #000; } .pill-MISSING { background: var(--err); color: #fff; } .pill-MULTI { background: var(--warn); color: #000; } .pill-DUP { background: var(--dup); color: #fff; }
+  .pill-OK { background: var(--ok); color: #000; } .pill-MISSING { background: var(--err); color: #fff; } .pill-MULTI, .pill-DENIED { background: var(--warn); color: #000; } .pill-DUP { background: var(--dup); color: #fff; }
   .row-flex { display: flex; gap: 8px; align-items: center; }
-  input[type="text"], input[type="number"] { background: #0f172a; border: 1px solid #334155; color: #fff; padding: 6px 8px; border-radius: 4px; width: 100%; }
+  input[type="text"], input[type="number"], select { background: #0f172a; border: 1px solid #334155; color: #fff; padding: 6px 8px; border-radius: 4px; width: 100%; font-size: 12px;}
+  .chk-cell { text-align: center; width: 30px; }
+  .del-btn { cursor: pointer; color: var(--err); font-weight: bold; font-size: 14px; background: none; border: none; padding: 0; }
+  .del-btn:hover { color: #fca5a5; }
+  input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent); }
 </style>
 </head>
 <body>
   <div class="card">
     <div class="row-flex" style="justify-content:space-between;">
-      <h2>1. Terč pro Makropad</h2>
-      <button id="btnConnect" onclick="connectSerial()" style="font-size:11px; padding:4px 8px; background:var(--err); color:#fff;">Nepřipojeno (Klikni pro USB)</button>
+      <h2>1. USB Makropad</h2>
+      <button id="btnConnect" onclick="connectSerial()" style="background:var(--err); color:#fff;">Nepřipojeno (Klikni)</button>
     </div>
     <div class="macro-target-box">
       <label id="stepLabel">ČEKÁM NA DATA A (Vlož a dej Enter)</label>
@@ -44,49 +48,50 @@
     </div>
     <div class="row-flex" style="justify-content: space-between; font-size: 12px;">
       <span>Rozpracované A: <strong id="curA" style="color:var(--accent)">-</strong></span>
-      <button class="secondary" onclick="resetCycle()" style="padding:4px 8px; font-size:11px;">Reset cyklu</button>
+      <button class="secondary" onclick="resetCycle()">Reset cyklu</button>
     </div>
-    <div style="font-size: 12px; color: var(--muted);">Poslední platné C v paměti: <strong id="lastCDisplay" style="color:var(--ok)">-</strong></div>
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
-    <h2>2. Import dat z Excelu</h2>
+    <h2>2. Import z Excelu</h2>
     <textarea id="excelInput" placeholder="V Excelu dej Ctrl+A, Ctrl+C, vlož sem (Ctrl+V) a klikni na Načíst..."></textarea>
     <button onclick="parseExcel()">Načíst Excel (filtr L = Aktuell)</button>
-    <div id="excelStatus" style="font-size: 12px; color: var(--muted);">Zatím nenačtena žádná data.</div>
+    <div id="excelStatus" style="font-size: 12px; color: var(--muted);">Zatím nenačtena data.</div>
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
-    <h2>3. Nastavení a Statistika</h2>
+    <h2>3. Nastavení</h2>
     <div style="font-size: 12px; display:flex; flex-direction:column; gap:6px;">
-      <label>Výchozí Data C (použije se jen pokud chybí hned 1. položka):</label>
+      <label>Výchozí Data C (pokud chybí hned 1. položka):</label>
       <input type="text" id="fallbackVal" value="">
-      <label>Další pořadové číslo položky v DB:</label>
-      <input type="number" id="nextSeqNum" value="1" min="1">
     </div>
     <div class="stats-grid">
       <div class="stat-item ok"><span class="stat-val" id="stOk">0</span>Nalezeno (OK)</div>
       <div class="stat-item err"><span class="stat-val" id="stErr">0</span>Chybí (Smazat)</div>
-      <div class="stat-item warn"><span class="stat-val" id="stMulti">0</span>Více výsledků</div>
-      <div class="stat-item dup"><span class="stat-val" id="stDup">0</span>Duplicitní dotaz</div>
+      <div class="stat-item warn"><span class="stat-val" id="stMulti">0</span>Více výsl. / Deny</div>
+      <div class="stat-item dup"><span class="stat-val" id="stDup">0</span>Duplicity</div>
     </div>
   </div>
 
   <div class="card">
     <div class="row-flex" style="justify-content: space-between;">
-      <h3>Živý Log</h3>
+      <div class="row-flex">
+        <select id="folderSelect" onchange="changeFolder()" style="width: 150px;"></select>
+        <button onclick="addFolder()">+ Složka</button>
+        <button class="danger" onclick="deleteFolder()">Smazat Složku</button>
+      </div>
       <div class="row-flex">
         <label style="font-size:12px; cursor:pointer;"><input type="checkbox" id="onlyErrors" onchange="renderLog()"> Jen problémové</label>
-        <button class="secondary" onclick="exportProblemsCSV()" style="font-size:12px;">Kopírovat seznam chyb</button>
-        <button class="danger" onclick="clearLog()" style="font-size:12px;">Vymazat log</button>
+        <button class="secondary" onclick="exportProblemsCSV()">Kopírovat chyby</button>
       </div>
     </div>
     <div class="log-container">
       <table>
         <thead>
           <tr>
-            <th style="width: 70px;"># Pořadí</th>
-            <th style="width: 100px;">Číslo v DB</th>
+            <th class="chk-cell">✓</th>
+            <th style="width: 110px;">Pozice DB</th>
             <th>Data A</th>
             <th>Data B</th>
             <th>Data C (Vloženo)</th>
-            <th style="width: 210px;">Stav</th>
+            <th style="width: 190px;">Stav</th>
+            <th style="width: 30px;"></th>
           </tr>
         </thead>
         <tbody id="logBody"></tbody>
@@ -97,84 +102,101 @@
 <script>
   let dbData = [];
   let waitingForB = false;
-  let waitingForPosition = false; 
   let tempA = "";
   let lastValidC = ""; 
   let seenCounts = {};
-  let logs = [];
 
-  // --- SÉRIOVÁ KOMUNIKACE A HANDSHAKE ---
-  let serialPort;
-  let serialWriter;
+  // --- SPRÁVA STAVU (LOCAL STORAGE) ---
+  let appState = {
+    folders: ["Výchozí složka"],
+    activeFolder: "Výchozí složka",
+    logs: [],
+    globalSeq: 1
+  };
 
+  function saveState() { localStorage.setItem('dbAutomatState', JSON.stringify(appState)); }
+  function loadState() {
+    const saved = localStorage.getItem('dbAutomatState');
+    if (saved) { appState = JSON.parse(saved); }
+    if (!appState.folders || appState.folders.length === 0) appState.folders = ["Výchozí složka"];
+    if (!appState.activeFolder) appState.activeFolder = appState.folders[0];
+    if (!appState.globalSeq) appState.globalSeq = 1;
+    renderFolders();
+    updateStats();
+    renderLog();
+  }
+
+  // --- SLOŽKY ---
+  function renderFolders() {
+    const sel = document.getElementById('folderSelect');
+    sel.innerHTML = "";
+    appState.folders.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f; opt.textContent = f;
+      if (f === appState.activeFolder) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+  function changeFolder() { appState.activeFolder = document.getElementById('folderSelect').value; saveState(); renderLog(); updateStats(); }
+  function addFolder() {
+    const name = prompt("Název nové složky pro logy:");
+    if (name && name.trim() !== "" && !appState.folders.includes(name)) {
+      appState.folders.push(name.trim()); appState.activeFolder = name.trim();
+      saveState(); renderFolders(); renderLog(); updateStats();
+    }
+  }
+  function deleteFolder() {
+    if (appState.folders.length <= 1) return alert("Poslední složku nelze smazat.");
+    if (confirm(`Opravdu smazat složku "${appState.activeFolder}" a všechny její logy?`)) {
+      appState.logs = appState.logs.filter(l => l.folder !== appState.activeFolder);
+      appState.folders = appState.folders.filter(f => f !== appState.activeFolder);
+      appState.activeFolder = appState.folders[0];
+      saveState(); renderFolders(); renderLog(); updateStats();
+    }
+  }
+
+  // --- SÉRIOVÁ KOMUNIKACE ---
+  let serialPort; let serialWriter;
   async function connectSerial() {
     try {
       serialPort = await navigator.serial.requestPort();
       await serialPort.open({ baudRate: 9600 });
-      const textEncoder = new TextEncoderStream();
-      textEncoder.readable.pipeTo(serialPort.writable);
+      const textEncoder = new TextEncoderStream(); textEncoder.readable.pipeTo(serialPort.writable);
       serialWriter = textEncoder.writable.getWriter();
       updateMacropadState();
-    } catch (e) {
-      alert("Nepodařilo se připojit: " + e);
-    }
+    } catch (e) { alert("Nepodařilo se připojit: " + e); }
   }
-
   async function updateMacropadState() {
     const btn = document.getElementById('btnConnect');
     if (serialWriter) {
       if (dbData.length > 0) {
-        await sendToMacro("READY"); // Povolí makropadu start
-        btn.textContent = "ZAPOJENO (Lze spustit)";
-        btn.style.background = "var(--ok)";
-        btn.style.color = "#000";
+        await sendToMacro("READY"); 
+        btn.textContent = "ZAPOJENO (Lze spustit)"; btn.style.background = "var(--ok)"; btn.style.color = "#000";
       } else {
-        btn.textContent = "USB PŘIPOJENO (Čekám na Excel)";
-        btn.style.background = "var(--warn)";
-        btn.style.color = "#000";
+        btn.textContent = "USB PŘIPOJENO (Čekám na Excel)"; btn.style.background = "var(--warn)"; btn.style.color = "#000";
       }
     }
   }
+  async function sendToMacro(cmd) { if (serialWriter) await serialWriter.write(cmd + "\n"); }
 
-  async function sendToMacro(cmd) {
-    if (serialWriter) {
-      await serialWriter.write(cmd + "\n");
-    } else {
-      console.warn("Makropad není připojen! Simuluji: " + cmd);
-    }
-  }
-  // ----------------------------------------
-
+  // --- HLAVNÍ LOGIKA ---
   const ioInput = document.getElementById('macroIO');
   const stepLabel = document.getElementById('stepLabel');
   const curAEl = document.getElementById('curA');
-  const lastCEl = document.getElementById('lastCDisplay');
 
   function parseExcel() {
     const raw = document.getElementById('excelInput').value;
-    if (!raw.trim()) { alert("Nejprve vlož data z Excelu!"); return; }
-
-    const lines = raw.split(/\r?\n/);
-    dbData = [];
-    let totalRows = 0;
-
+    if (!raw.trim()) return alert("Vlož data z Excelu!");
+    const lines = raw.split(/\r?\n/); dbData = []; let totalRows = 0;
     for (let i = 0; i < lines.length; i++) {
       if (!lines[i].trim()) continue;
-      totalRows++;
-      const cols = lines[i].split('\t');
-      const colA = (cols[0] || "").trim();
-      const colB = (cols[1] || "").trim();
-      const colF = (cols[5] || "").trim();
-      const colL = (cols[11] || "").trim();
-      if (colL.toLowerCase() === "aktuell") dbData.push({ a: colA, b: colB, f: colF, excelRow: i + 1 });
+      totalRows++; const cols = lines[i].split('\t');
+      if ((cols[11] || "").trim().toLowerCase() === "aktuell") dbData.push({ a: (cols[0] || "").trim(), b: (cols[1] || "").trim(), f: (cols[5] || "").trim() });
     }
-
     const fbInput = document.getElementById('fallbackVal');
     if (!fbInput.value && dbData.length > 0) fbInput.value = dbData[0].f;
     document.getElementById('excelStatus').innerHTML = `Načteno <b>${totalRows}</b> řádků. Aktivních: <b style="color:var(--ok)">${dbData.length}</b>.`;
-    
-    updateMacropadState(); // Kontrola, zda už je připojené USB pro odemčení startu
-    ioInput.focus();
+    updateMacropadState(); ioInput.focus();
   }
 
   ioInput.addEventListener('keydown', function(e) {
@@ -183,145 +205,128 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      if (waitingForPosition) {
-        logs[0].dbPosText = "Pozice z DB: " + val;
-        waitingForPosition = false;
-        renderLog();
+      // Zpracování chybové/zamítnuté pozice od makropadu
+      if (val.startsWith("ERR") || val.startsWith("DNY")) {
+        const isDeny = val.startsWith("DNY");
+        const posNum = val.replace("ERR", "").replace("DNY", "");
+        
+        // Najde poslední log v aktuální složce a aktualizuje ho
+        let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+        if (currentFolderLogs.length > 0) {
+          let lastLog = currentFolderLogs[0];
+          lastLog.dbPosText = "Pozice: " + posNum;
+          if (isDeny) {
+            lastLog.status = "DENIED";
+            lastLog.statusText = "ZAMÍTNUTO (Ruční Deny)";
+            lastLog.checked = false;
+          }
+          saveState(); renderLog(); updateStats();
+        }
         resetCycle();
         return;
       }
 
       if (!waitingForB) {
-        tempA = val;
-        waitingForB = true;
-        curAEl.textContent = tempA || "(prázdné)";
-        stepLabel.textContent = "ČEKÁM NA DATA B";
-        stepLabel.style.color = "#f59e0b";
+        tempA = val; waitingForB = true; curAEl.textContent = tempA || "(prázdné)";
+        stepLabel.textContent = "ČEKÁM NA DATA B"; stepLabel.style.color = "#f59e0b";
       } else {
-        const tempB = val;
-        waitingForB = false;
+        const tempB = val; waitingForB = false;
         const result = evaluateLookup(tempA, tempB);
         
-        // Zpracování chyb - Nyní i DUP vyhodí error cestu (SKIP)
         if (result.status === "MISSING" || result.status === "MULTI" || result.status === "DUP") {
           sendToMacro("SKIP");
-          waitingForPosition = true;
-          stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI Z DB`;
+          stepLabel.textContent = `CHYBA (${result.status}) -> ČEKÁM NA POZICI`;
           stepLabel.style.color = "#ef4444";
         } else {
           sendToMacro("OK");
           stepLabel.textContent = "OK -> DATA C OZNAČENA PRO CTRL+C";
           stepLabel.style.color = "#22c55e";
-          ioInput.value = result.outputC;
-          ioInput.select();
+          ioInput.value = result.outputC; ioInput.select();
         }
       }
     }
   });
 
   function evaluateLookup(valA, valB) {
-    const seqInput = document.getElementById('nextSeqNum');
-    const seq = parseInt(seqInput.value, 10) || 1;
-    seqInput.value = seq + 1;
-
-    const normA = valA.toLowerCase();
-    const normB = valB.toLowerCase();
+    const normA = valA.toLowerCase(); const normB = valB.toLowerCase();
     const key = `${normA}|||${normB}`;
-
-    seenCounts[key] = (seenCounts[key] || 0) + 1;
-    const count = seenCounts[key];
-
+    seenCounts[key] = (seenCounts[key] || 0) + 1; const count = seenCounts[key];
     const matches = dbData.filter(item => item.a.toLowerCase() === normA && item.b.toLowerCase() === normB);
-    const uniqueF = [...new Set(matches.map(m => m.f))];
 
-    let status = "OK";
-    let statusText = "OK";
-    let outputC = "";
-    const fallback = document.getElementById('fallbackVal').value;
-
+    let status = "OK"; let statusText = "OK"; let outputC = "";
     if (matches.length === 0) {
-      status = "MISSING";
-      outputC = lastValidC !== "" ? lastValidC : fallback;
-      statusText = "CHYBÍ V EXCELU";
+      status = "MISSING"; outputC = lastValidC !== "" ? lastValidC : document.getElementById('fallbackVal').value; statusText = "CHYBÍ V EXCELU";
     } else if (matches.length > 1) {
-      status = "MULTI";
-      outputC = matches[0].f;
-      lastValidC = outputC;
-      lastCEl.textContent = lastValidC;
-      statusText = `VÍCE SHOD (${matches.length}x)`;
+      status = "MULTI"; outputC = matches[0].f; lastValidC = outputC; statusText = `VÍCE SHOD (${matches.length}x)`;
     } else {
-      outputC = matches[0].f;
-      lastValidC = outputC;
-      lastCEl.textContent = lastValidC;
-      if (count > 1) { 
-        status = "DUP"; 
-        statusText = `DUPLICITA (${count}x)`; 
-      }
+      outputC = matches[0].f; lastValidC = outputC;
+      if (count > 1) { status = "DUP"; statusText = `DUPLICITA (${count}x)`; }
     }
-
     if (status !== "DUP" && count > 1) statusText += ` [Opak. ${count}x]`;
 
-    logs.unshift({ seq, dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status, statusText });
-
-    updateStats();
-    renderLog();
+    // Vytvoření nového logu
+    const newLog = {
+      id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
+      dbPosText: "Zjišťuji...", a: valA, b: valB, c: outputC, status: status, statusText: statusText,
+      checked: (status === "OK") // Defaultně zaškrtnuto jen pokud je to OK
+    };
+    appState.logs.unshift(newLog); // Přidá na začátek
+    saveState(); updateStats(); renderLog();
     return { status: status, outputC: outputC };
   }
 
+  // --- LOGOVÁNÍ A UI ---
   function updateStats() {
-    document.getElementById('stOk').textContent = logs.filter(l => l.status === 'OK').length;
-    document.getElementById('stErr').textContent = logs.filter(l => l.status === 'MISSING').length;
-    document.getElementById('stMulti').textContent = logs.filter(l => l.status === 'MULTI').length;
-    document.getElementById('stDup').textContent = logs.filter(l => l.status === 'DUP').length;
+    const curLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+    document.getElementById('stOk').textContent = curLogs.filter(l => l.status === 'OK').length;
+    document.getElementById('stErr').textContent = curLogs.filter(l => l.status === 'MISSING').length;
+    document.getElementById('stMulti').textContent = curLogs.filter(l => l.status === 'MULTI' || l.status === 'DENIED').length;
+    document.getElementById('stDup').textContent = curLogs.filter(l => l.status === 'DUP').length;
   }
 
   function renderLog() {
     const onlyErr = document.getElementById('onlyErrors').checked;
-    const tbody = document.getElementById('logBody');
-    tbody.innerHTML = "";
-    const filtered = onlyErr ? logs.filter(l => l.status !== 'OK') : logs;
+    const tbody = document.getElementById('logBody'); tbody.innerHTML = "";
+    let curLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+    if (onlyErr) curLogs = curLogs.filter(l => l.status !== 'OK');
 
-    for (const item of filtered) {
-      const tr = document.createElement('tr');
-      tr.className = `row-${item.status}`;
+    for (const item of curLogs) {
+      const tr = document.createElement('tr'); tr.className = `row-${item.status}`;
       tr.innerHTML = `
-        <td><b>#${item.seq}</b></td>
+        <td class="chk-cell"><input type="checkbox" onchange="toggleCheck(${item.id})" ${item.checked ? "checked" : ""}></td>
         <td>${escapeHtml(item.dbPosText)}</td>
         <td>${escapeHtml(item.a)}</td>
         <td>${escapeHtml(item.b)}</td>
         <td>${escapeHtml(item.c)}</td>
         <td><span class="pill pill-${item.status}">${item.statusText}</span></td>
+        <td><button class="del-btn" onclick="deleteLog(${item.id})" title="Smazat">🗑</button></td>
       `;
       tbody.appendChild(tr);
     }
   }
 
-  function resetCycle() {
-    waitingForB = false;
-    waitingForPosition = false;
-    tempA = "";
-    curAEl.textContent = "-";
-    ioInput.value = "";
-    stepLabel.textContent = "ČEKÁM NA DATA A";
-    stepLabel.style.color = "var(--accent)";
-    ioInput.focus();
+  function toggleCheck(id) {
+    const log = appState.logs.find(l => l.id === id);
+    if (log) { log.checked = !log.checked; saveState(); }
   }
 
-  function clearLog() {
-    if (!confirm("Opravdu vymazat log?")) return;
-    logs = []; seenCounts = {}; lastValidC = ""; lastCEl.textContent = "-";
-    document.getElementById('nextSeqNum').value = 1;
-    resetCycle(); updateStats(); renderLog();
+  function deleteLog(id) {
+    appState.logs = appState.logs.filter(l => l.id !== id);
+    saveState(); updateStats(); renderLog();
   }
 
+  function resetCycle() { waitingForB = false; tempA = ""; curAEl.textContent = "-"; ioInput.value = ""; stepLabel.textContent = "ČEKÁM NA DATA A"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); }
   function exportProblemsCSV() {
-    const probs = logs.filter(l => l.status !== 'OK');
-    if (probs.length === 0) { alert("Žádné problémové položky!"); return; }
-    const text = "Poradi\tPozice_v_DB\tData_A\tData_B\tData_C\tProblem\n" + 
-      probs.map(p => `#${p.seq}\t${p.dbPosText}\t${p.a}\t${p.b}\t${p.c}\t${p.statusText}`).join("\n");
+    const probs = appState.logs.filter(l => l.folder === appState.activeFolder && l.status !== 'OK');
+    if (probs.length === 0) return alert("Žádné problémové položky ve složce!");
+    const text = "Pozice_v_DB\tData_A\tData_B\tData_C\tProblem\tZpracovano\n" + 
+      probs.map(p => `${p.dbPosText}\t${p.a}\t${p.b}\t${p.c}\t${p.statusText}\t${p.checked ? 'Ano' : 'Ne'}`).join("\n");
     navigator.clipboard.writeText(text).then(() => alert("Kopírováno do schránky!"));
   }
   function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+
+  // Init
+  loadState();
 </script>
 </body>
 </html>
