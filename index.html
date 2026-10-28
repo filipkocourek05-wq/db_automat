@@ -122,13 +122,13 @@
     
     <div class="row-flex export-panel" style="justify-content: space-between;">
       <div class="row-flex" style="gap: 12px;">
-        <span style="color: var(--muted); font-weight: bold;">Stáhnout jako CSV:</span>
+        <span style="color: var(--muted); font-weight: bold;">Export do Excelu:</span>
         <label style="cursor:pointer; color:var(--err);"><input type="checkbox" id="expMissing" checked> Chybí v Excelu</label>
         <label style="cursor:pointer; color:var(--warn);"><input type="checkbox" id="expDenied" checked> Zamítnuto/Multi</label>
         <label style="cursor:pointer; color:var(--dup);"><input type="checkbox" id="expDup"> Duplicity</label>
         <label style="cursor:pointer; color:var(--ok);"><input type="checkbox" id="expOk"> V pořádku (OK)</label>
       </div>
-      <button class="secondary" onclick="exportCSVFile()" style="padding: 4px 12px; font-size: 13px;">Stáhnout</button>
+      <button class="secondary" onclick="exportExcelFile()" style="padding: 4px 12px; font-size: 13px;">Stáhnout Excel</button>
     </div>
 
     <div class="log-container">
@@ -589,7 +589,8 @@
     saveState(); renderLog(); closeNoteModal();
   }
 
-  function exportCSVFile() {
+  // --- NOVÝ EXPORT S BARVAMI PRO EXCEL ---
+  function exportExcelFile() {
     const expMissing = document.getElementById('expMissing').checked;
     const expDenied = document.getElementById('expDenied').checked;
     const expDup = document.getElementById('expDup').checked;
@@ -604,19 +605,66 @@
     });
 
     if (toExport.length === 0) return alert("S tímto filtrem nebyly nalezeny žádné záznamy k exportu.");
-    let csvContent = "\uFEFFPozice_v_DB;Data_A;Data_B;Data_C;Stav_Chyby;Poznamka\n";
+
+    // Generování HTML struktury tabulky, kterou Excel nativně rozezná
+    let tableHtml = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+    <meta charset="utf-8">
+    </head>
+    <body>
+      <table border="1">
+        <thead>
+          <tr>
+            <th>Pozice DB</th>
+            <th>Data A</th>
+            <th>Data B</th>
+            <th>Data C</th>
+            <th>Stav</th>
+            <th>Poznámka</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
     toExport.forEach(p => {
-       let safePos = String(p.dbPosText).replace(/;/g, ","); let safeA = String(p.a).replace(/;/g, ",");
-       let safeB = String(p.b).replace(/;/g, ","); let safeC = String(p.c).replace(/;/g, ",");
-       let safeStatus = String(p.statusText).replace(/;/g, ","); let safeNote = String(p.note || "").replace(/;/g, ",");
-       csvContent += `${safePos};${safeA};${safeB};${safeC};${safeStatus};${safeNote}\n`;
+       let bgColor = "";
+       if (p.status === "MISSING") bgColor = "#fca5a5";       // Červená
+       else if (p.status === "MULTI" || p.status === "DENIED") bgColor = "#fcd34d"; // Oranžová
+       else if (p.status === "DUP") bgColor = "#e9d5ff";      // Fialová
+
+       let style = bgColor ? ` style="background-color:${bgColor};"` : "";
+       
+       tableHtml += `
+          <tr>
+            <td${style}>${escapeHtml(p.dbPosText)}</td>
+            <td${style}>${escapeHtml(p.a)}</td>
+            <td${style}>${escapeHtml(p.b)}</td>
+            <td${style}>${escapeHtml(p.c)}</td>
+            <td${style}>${escapeHtml(p.statusText)}</td>
+            <td${style}>${escapeHtml(p.note || "")}</td>
+          </tr>
+       `;
     });
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    tableHtml += `
+        </tbody>
+      </table>
+    </body>
+    </html>
+    `;
+
+    const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Export_${appState.activeFolder.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    const safeFolderName = appState.activeFolder.replace(/\s+/g, '_');
+    const dateStr = new Date().toISOString().slice(0,10);
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Export_${safeFolderName}_${dateStr}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
   
   function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
