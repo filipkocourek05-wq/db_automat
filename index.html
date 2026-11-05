@@ -32,8 +32,6 @@
   tr.row-MULTI { background: rgba(245, 158, 11, 0.25); color: #fde68a; font-weight: bold; } 
   tr.row-DUP { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; } 
   tr.row-DENIED { background: rgba(245, 158, 11, 0.4); color: #fff; font-weight: bold; }
-  
-  /* Nový styl pro smazané položky */
   tr.deleted-row td { text-decoration: line-through; opacity: 0.5; }
   
   .pill { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
@@ -97,7 +95,7 @@
         <button onclick="startWriteCycle()" style="flex:1; background:var(--warn); color:black;">✍️ Zapsat</button>
       </div>
 
-      <!-- NOVÝ Panel pro Mazání z DB -->
+      <!-- Panel pro Mazání z DB -->
       <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px; justify-content: space-between;">
         <span style="font-size: 11px; color: var(--muted); flex: 1; line-height: 1.3;">Zaškrtni v tabulce položky<br>ke smazání. (Chybějící<br>se zaškrtnou samy).</span>
         <button onclick="startDeleteCycle()" style="background:var(--err); color:white; padding: 6px 12px; height: 100%;">🗑 Smazat vybrané v DB</button>
@@ -206,7 +204,6 @@
   let writeQueue = [];
   let writeIndex = 0;
 
-  // Proměnné pro Mazání
   let deleteActive = false;
   let deleteQueue = [];
   let deleteIndex = 0;
@@ -282,6 +279,17 @@
     return parseInt(document.getElementById('dbRetard').value, 10) || 0;
   }
 
+  // --- AUTOMATICKÁ OPRAVA INDEXŮ ŘÁDKŮ ---
+  function ensureListIndices(logsArray) {
+    let needsFix = logsArray.some(l => !l.listIndex);
+    if (needsFix) {
+      // Seřadí podle času vytvoření logu (nejstarší = 1. načtený řádek = index 1)
+      let sorted = [...logsArray].sort((a, b) => a.id - b.id);
+      sorted.forEach((l, i) => l.listIndex = i + 1);
+      saveState();
+    }
+  }
+
   function testGoToItem() {
     const N = parseInt(document.getElementById('dbTotalItems').value, 10);
     const X = parseInt(document.getElementById('testTargetItem').value, 10);
@@ -322,8 +330,10 @@
     if (!serialWriter) return alert("Nejprve připoj makropad!");
     totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
 
-    let mode = document.getElementById('writeModeSelect').value;
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+    ensureListIndices(currentFolderLogs); // Automatická oprava indexů, pokud chybí
+
+    let mode = document.getElementById('writeModeSelect').value;
 
     if (mode === 'ok_all') {
       writeQueue = currentFolderLogs.filter(l => l.status === 'OK');
@@ -331,7 +341,7 @@
       let startIdx = parseInt(document.getElementById('writeStart').value, 10);
       let endIdx = parseInt(document.getElementById('writeEnd').value, 10);
       writeQueue = currentFolderLogs.filter(l => {
-          let idx = l.listIndex || parseInt(l.dbPosText.replace(/[^\d]/g, '')) || 0;
+          let idx = l.listIndex;
           return l.status === 'OK' && idx >= startIdx && idx <= endIdx;
       });
     } else {
@@ -346,11 +356,8 @@
 
     if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis.");
 
-    writeQueue.sort((a, b) => {
-       let idxA = a.listIndex || parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
-       let idxB = b.listIndex || parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
-       return idxA - idxB;
-    });
+    // Seřazení vzestupně pro plynulý zápis shora dolů
+    writeQueue.sort((a, b) => a.listIndex - b.listIndex);
 
     writeIndex = 0;
     writeActive = true; readingActive = false; deleteActive = false;
@@ -365,9 +372,10 @@
       alert("Zápis do databáze byl dokončen!");
       return;
     }
+
     let item = writeQueue[writeIndex];
-    let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, ''));
-    let targetRow = item.listIndex || posNum; 
+    let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, '')) || 0;
+    let targetRow = item.listIndex; 
 
     const ioBox = document.getElementById('macroIO');
     ioBox.value = item.c; ioBox.focus(); ioBox.select(); 
@@ -377,25 +385,23 @@
     sendToMacro(`WRITE_ITEM:${targetRow}:${totalTargetItems}:${getRetardValue()}`);
   }
 
-  // --- MAZÁNÍ PŘES CHECKBOXY ---
+  // --- MAZÁNÍ ---
   function startDeleteCycle() {
     if (!serialWriter) return alert("Nejprve připoj makropad!");
     totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
+
+    let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+    ensureListIndices(currentFolderLogs); // Automatická oprava indexů, pokud chybí
 
     const checkboxes = document.querySelectorAll('.delete-cb:checked');
     const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-id')));
 
     if (selectedIds.length === 0) return alert("Nejsou zaškrtnuty žádné položky ke smazání.");
 
-    let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
     deleteQueue = currentFolderLogs.filter(l => selectedIds.includes(l.id));
 
-    // MAZÁNÍ ŘADÍME SESTUPNĚ (Odspodu nahoru, ať se nerozhodí pozice těch horních)
-    deleteQueue.sort((a, b) => {
-       let idxA = a.listIndex || parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
-       let idxB = b.listIndex || parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
-       return idxB - idxA; 
-    });
+    // Seřazení sestupně (odspodu nahoru, ať se neposunou indexy těch nad nimi)
+    deleteQueue.sort((a, b) => b.listIndex - a.listIndex);
 
     deleteIndex = 0;
     deleteActive = true; writeActive = false; readingActive = false;
@@ -410,9 +416,10 @@
       alert("Promazávání databáze bylo dokončeno!");
       return;
     }
+
     let item = deleteQueue[deleteIndex];
-    let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, ''));
-    let targetRow = item.listIndex || posNum; 
+    let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, '')) || 0;
+    let targetRow = item.listIndex; 
 
     document.getElementById('stepLabel').textContent = `MAŽU POZICI DB ${posNum} (Řádek: ${targetRow})...`;
     document.getElementById('stepLabel').style.color = "var(--err)";
@@ -532,7 +539,6 @@
       if (!silent) alert("Vlož data z Excelu!");
       return;
     }
-    
     localStorage.setItem('savedExcelData', raw); 
 
     const lines = raw.split(/\r?\n/); dbData = []; let totalRows = 0;
@@ -740,8 +746,6 @@
        else if (p.status === "DUP") bgColor = "#e9d5ff";      
 
        let styleAttr = bgColor ? `background-color:${bgColor};` : "";
-       
-       // Přidání přeškrtnutí i do Excelu, pokud byla položka smazána
        if (p.statusText && p.statusText.includes("[SMAZÁNO]")) {
            styleAttr += " text-decoration: line-through; color: #999999;";
        }
