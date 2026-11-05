@@ -48,6 +48,12 @@
       <label id="stepLabel">PŘIPRAVENO (Přijímám data od makropadu)</label>
       <input type="text" id="macroIO" placeholder="SEM NAKALIBRUJ BOD 10" autocomplete="off">
     </div>
+    
+    <!-- Nový panel pro zobrazení jednoho zaměřeného bodu -->
+    <div class="row-flex" style="justify-content: space-between; font-size: 12px;">
+      <span>Nová souřadnice: <strong id="foundCoord" style="color:var(--dup); font-family:monospace; font-size:14px;">-</strong></span>
+      <button class="secondary" onclick="resetCycle()">Reset cyklu</button>
+    </div>
 
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
     <h2>2. Velení Makropadu (Commander)</h2>
@@ -348,13 +354,19 @@
 
   const ioInput = document.getElementById('macroIO');
   const stepLabel = document.getElementById('stepLabel');
-  const curAEl = document.getElementById('curA');
 
   ioInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
       const val = ioInput.value.trim();
       ioInput.value = "";
+
+      // Novinka: Záchyt přijetí jednorázové souřadnice z makropadu
+      if (val.startsWith("COORD:")) {
+        document.getElementById('foundCoord').textContent = val.replace("COORD:", "").trim();
+        resetCycle();
+        return;
+      }
 
       if (writeActive) {
         if (val === "W_OK" || val === "W_DNY") {
@@ -409,7 +421,6 @@
 
       if (!waitingForB) {
         tempA = val; waitingForB = true; 
-        curAEl.textContent = tempA || "(prázdné)";
         stepLabel.textContent = "ČEKÁM NA DATA B"; stepLabel.style.color = "#f59e0b";
       } else {
         const tempBVal = val; waitingForB = false;
@@ -506,7 +517,7 @@
   }
 
   function resetCycle() { 
-    waitingForB = false; tempA = ""; curAEl.textContent = "-"; 
+    waitingForB = false; tempA = ""; 
     readingActive = false; writeActive = false; commanderState = 0;
     ioInput.value = ""; stepLabel.textContent = "PŘIPRAVENO (Čekám na data)"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
   }
@@ -589,7 +600,6 @@
     saveState(); renderLog(); closeNoteModal();
   }
 
-  // --- NOVÝ EXPORT S BARVAMI PRO EXCEL ---
   function exportExcelFile() {
     const expMissing = document.getElementById('expMissing').checked;
     const expDenied = document.getElementById('expDenied').checked;
@@ -606,7 +616,6 @@
 
     if (toExport.length === 0) return alert("S tímto filtrem nebyly nalezeny žádné záznamy k exportu.");
 
-    // Generování HTML struktury tabulky, kterou Excel nativně rozezná
     let tableHtml = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
     <head>
@@ -629,9 +638,9 @@
 
     toExport.forEach(p => {
        let bgColor = "";
-       if (p.status === "MISSING") bgColor = "#fca5a5";       // Červená
-       else if (p.status === "MULTI" || p.status === "DENIED") bgColor = "#fcd34d"; // Oranžová
-       else if (p.status === "DUP") bgColor = "#e9d5ff";      // Fialová
+       if (p.status === "MISSING") bgColor = "#fca5a5";      
+       else if (p.status === "MULTI" || p.status === "DENIED") bgColor = "#fcd34d"; 
+       else if (p.status === "DUP") bgColor = "#e9d5ff";      
 
        let style = bgColor ? ` style="background-color:${bgColor};"` : "";
        
