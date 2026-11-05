@@ -49,7 +49,6 @@
       <input type="text" id="macroIO" placeholder="SEM NAKALIBRUJ BOD 10" autocomplete="off">
     </div>
     
-    <!-- Nový panel pro zobrazení jednoho zaměřeného bodu -->
     <div class="row-flex" style="justify-content: space-between; font-size: 12px;">
       <span>Nová souřadnice: <strong id="foundCoord" style="color:var(--dup); font-family:monospace; font-size:14px;">-</strong></span>
       <button class="secondary" onclick="resetCycle()">Reset cyklu</button>
@@ -88,14 +87,25 @@
         <button onclick="startWriteCycle()" style="flex:1; background:var(--warn); color:black;">✍️ Zapsat</button>
       </div>
 
+      <!-- NOVÝ Panel pro Mazání z DB -->
+      <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px;">
+        <select id="deleteModeSelect" style="width: 110px;" onchange="toggleDeleteMode()">
+          <option value="missing">Vše CHYBÍ</option>
+          <option value="custom">Vybrané...</option>
+        </select>
+        
+        <input type="text" id="deleteCustomPos" placeholder="např. 5, 12" style="display:none; width: 100px;" title="Zadej čísla pozic z DB oddělená čárkou">
+        <button onclick="startDeleteCycle()" style="flex:1; background:var(--err); color:white;">🗑 Smazat v DB</button>
+      </div>
+
       <!-- Panel s Retardací DB a Scroll Testem -->
-      <div class="row-flex" style="margin-top: 8px;">
+      <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px;">
         <label style="font-size:11px; white-space:nowrap; color:var(--muted);">Skok na pol.:</label>
         <input type="number" id="testTargetItem" value="43" min="1" style="width: 50px;">
         <button class="secondary" onclick="testGoToItem()" style="flex:1;">Scroll Test</button>
         
-        <label style="font-size:11px; white-space:nowrap; color:var(--warn); margin-left: 8px;" title="Zpoždění (ms) navíc před akcemi pro pomalou DB">Retardace DB:</label>
-        <input type="number" id="dbRetard" value="0" min="0" step="50" style="width: 60px;">
+        <label style="font-size:11px; white-space:nowrap; color:var(--warn); margin-left: 8px;" title="Zpoždění (ms) navíc před akcemi pro pomalou DB">Retardace:</label>
+        <input type="number" id="dbRetard" value="0" min="0" step="50" style="width: 50px;">
       </div>
     </div>
 
@@ -190,6 +200,11 @@
   let writeQueue = [];
   let writeIndex = 0;
 
+  // Proměnné pro Mazání
+  let deleteActive = false;
+  let deleteQueue = [];
+  let deleteIndex = 0;
+
   let waitingForB = false;
 
   let appState = { folders: ["Výchozí složka"], activeFolder: "Výchozí složka", logs: [], globalSeq: 1 };
@@ -201,6 +216,14 @@
     if (!appState.folders || appState.folders.length === 0) appState.folders = ["Výchozí složka"];
     if (!appState.activeFolder) appState.activeFolder = appState.folders[0];
     if (!appState.globalSeq) appState.globalSeq = 1;
+    
+    // Načtení paměti Excelu
+    const savedEx = localStorage.getItem('savedExcelData');
+    if (savedEx) {
+      document.getElementById('excelInput').value = savedEx;
+      parseExcel(true);
+    }
+
     renderFolders(); updateStats(); renderLog();
   }
 
@@ -275,7 +298,7 @@
     if(startItem > batchEndItem) return alert("Začátek musí být menší nebo roven konci!");
 
     currentTargetItem = startItem;
-    readingActive = true; writeActive = false;
+    readingActive = true; writeActive = false; deleteActive = false;
     commanderState = 0; tempA = ""; tempB = "";
     
     document.getElementById('stepLabel').textContent = `ČTU POLOŽKU ${currentTargetItem} (Cíl: ${batchEndItem})...`;
@@ -283,6 +306,7 @@
     sendToMacro(`READ_BATCH:${startItem}:${batchEndItem}:${totalTargetItems}:${getRetardValue()}`);
   }
 
+  // --- ZÁPIS ---
   function toggleWriteMode() {
     const mode = document.getElementById('writeModeSelect').value;
     document.getElementById('writeCustomPos').style.display = (mode === 'custom') ? 'block' : 'none';
@@ -315,8 +339,9 @@
       }
     }
 
-    if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis (Zkontroluj stav OK, rozsah nebo zadaná čísla).");
+    if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis.");
 
+    // Pro ZÁPIS řadíme VZESTUPNĚ (odshora dolů)
     writeQueue.sort((a, b) => {
        let idxA = a.listIndex || parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
        let idxB = b.listIndex || parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
@@ -324,7 +349,7 @@
     });
 
     writeIndex = 0;
-    writeActive = true; readingActive = false;
+    writeActive = true; readingActive = false; deleteActive = false;
     processNextWriteItem();
   }
 
@@ -333,27 +358,83 @@
       writeActive = false;
       document.getElementById('stepLabel').textContent = "HOTOVO: Zápis dokončen.";
       document.getElementById('stepLabel').style.color = "var(--ok)";
-      alert("Zápis vybraných položek do databáze byl dokončen!");
+      alert("Zápis do databáze byl dokončen!");
       return;
     }
-
     let item = writeQueue[writeIndex];
     let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, ''));
     let targetRow = item.listIndex || posNum; 
 
     const ioBox = document.getElementById('macroIO');
-    ioBox.value = item.c;
-    ioBox.focus();
-    ioBox.select(); 
+    ioBox.value = item.c; ioBox.focus(); ioBox.select(); 
 
     document.getElementById('stepLabel').textContent = `ZAPISUJI POZICI DB ${posNum} (Řádek: ${targetRow})...`;
     document.getElementById('stepLabel').style.color = "var(--warn)";
-
     sendToMacro(`WRITE_ITEM:${targetRow}:${totalTargetItems}:${getRetardValue()}`);
   }
 
+  // --- MAZÁNÍ ---
+  function toggleDeleteMode() {
+    const mode = document.getElementById('deleteModeSelect').value;
+    document.getElementById('deleteCustomPos').style.display = (mode === 'custom') ? 'block' : 'none';
+  }
+
+  function startDeleteCycle() {
+    if (!serialWriter) return alert("Nejprve připoj makropad!");
+    totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
+
+    let mode = document.getElementById('deleteModeSelect').value;
+    let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+
+    if (mode === 'missing') {
+      deleteQueue = currentFolderLogs.filter(l => l.status === 'MISSING');
+    } else {
+      let str = document.getElementById('deleteCustomPos').value;
+      let posArray = str.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      deleteQueue = [];
+      for (let p of posArray) {
+        let match = currentFolderLogs.find(l => parseInt(l.dbPosText.replace(/[^\d]/g, '')) === p);
+        if (match) deleteQueue.push(match);
+      }
+    }
+
+    if (deleteQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro smazání.");
+
+    // Pro MAZÁNÍ řadíme SESTUPNĚ (odspodu nahoru), aby smazání položky neposunulo indexy těch nad ní!
+    deleteQueue.sort((a, b) => {
+       let idxA = a.listIndex || parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
+       let idxB = b.listIndex || parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
+       return idxB - idxA; 
+    });
+
+    deleteIndex = 0;
+    deleteActive = true; writeActive = false; readingActive = false;
+    processNextDeleteItem();
+  }
+
+  function processNextDeleteItem() {
+    if (deleteIndex >= deleteQueue.length) {
+      deleteActive = false;
+      document.getElementById('stepLabel').textContent = "HOTOVO: Mazání dokončeno.";
+      document.getElementById('stepLabel').style.color = "var(--ok)";
+      alert("Promazávání databáze bylo dokončeno!");
+      return;
+    }
+    let item = deleteQueue[deleteIndex];
+    let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, ''));
+    let targetRow = item.listIndex || posNum; 
+
+    document.getElementById('stepLabel').textContent = `MAŽU POZICI DB ${posNum} (Řádek: ${targetRow})...`;
+    document.getElementById('stepLabel').style.color = "var(--err)";
+    
+    // Nový povel do makropadu
+    sendToMacro(`DELETE_ITEM:${targetRow}:${totalTargetItems}:${getRetardValue()}`);
+  }
+
+  // --- ZPRACOVÁNÍ VSTUPU OD MAKROPADU ---
   const ioInput = document.getElementById('macroIO');
   const stepLabel = document.getElementById('stepLabel');
+  const curAEl = document.getElementById('curA');
 
   ioInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
@@ -361,13 +442,26 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // Novinka: Záchyt přijetí jednorázové souřadnice z makropadu
+      // Příjem souřadnice ze Single-Point kalibrace
       if (val.startsWith("COORD:")) {
         document.getElementById('foundCoord').textContent = val.replace("COORD:", "").trim();
         resetCycle();
         return;
       }
 
+      // Odpověď z MAZÁNÍ
+      if (deleteActive) {
+        if (val === "DEL_OK") {
+          let item = deleteQueue[deleteIndex];
+          if (!item.statusText.includes("[SMAZÁNO]")) item.statusText += " [SMAZÁNO]";
+          saveState(); renderLog(); updateStats();
+          deleteIndex++;
+          processNextDeleteItem();
+        }
+        return;
+      }
+
+      // Odpověď ze ZÁPISU
       if (writeActive) {
         if (val === "W_OK" || val === "W_DNY") {
           let item = writeQueue[writeIndex];
@@ -421,6 +515,7 @@
 
       if (!waitingForB) {
         tempA = val; waitingForB = true; 
+        curAEl.textContent = tempA || "(prázdné)";
         stepLabel.textContent = "ČEKÁM NA DATA B"; stepLabel.style.color = "#f59e0b";
       } else {
         const tempBVal = val; waitingForB = false;
@@ -445,9 +540,15 @@
     }
   });
 
-  function parseExcel() {
+  function parseExcel(silent = false) {
     const raw = document.getElementById('excelInput').value;
-    if (!raw.trim()) return alert("Vlož data z Excelu!");
+    if (!raw.trim()) {
+      if (!silent) alert("Vlož data z Excelu!");
+      return;
+    }
+    
+    localStorage.setItem('savedExcelData', raw); // Uložení do paměti prohlížeče
+
     const lines = raw.split(/\r?\n/); dbData = []; let totalRows = 0;
     for (let i = 0; i < lines.length; i++) {
       if (!lines[i].trim()) continue;
@@ -517,8 +618,8 @@
   }
 
   function resetCycle() { 
-    waitingForB = false; tempA = ""; 
-    readingActive = false; writeActive = false; commanderState = 0;
+    waitingForB = false; tempA = ""; curAEl.textContent = "-"; 
+    readingActive = false; writeActive = false; deleteActive = false; commanderState = 0;
     ioInput.value = ""; stepLabel.textContent = "PŘIPRAVENO (Čekám na data)"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
   }
 
@@ -618,9 +719,7 @@
 
     let tableHtml = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-    <meta charset="utf-8">
-    </head>
+    <head><meta charset="utf-8"></head>
     <body>
       <table border="1">
         <thead>
@@ -656,12 +755,7 @@
        `;
     });
 
-    tableHtml += `
-        </tbody>
-      </table>
-    </body>
-    </html>
-    `;
+    tableHtml += `</tbody></table></body></html>`;
 
     const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
@@ -677,6 +771,8 @@
   }
   
   function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+  
+  // Spustí se hned po načtení stránky
   loadState();
 </script>
 </body>
