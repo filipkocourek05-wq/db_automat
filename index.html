@@ -283,11 +283,25 @@
   function ensureListIndices(logsArray) {
     let needsFix = logsArray.some(l => !l.listIndex);
     if (needsFix) {
-      // Seřadí podle času vytvoření logu (nejstarší = 1. načtený řádek = index 1)
       let sorted = [...logsArray].sort((a, b) => a.id - b.id);
       sorted.forEach((l, i) => l.listIndex = i + 1);
       saveState();
     }
+  }
+
+  // --- CHYTRÉ DOPOČÍTÁVÁNÍ (EFEKTIVNÍ INDEX) ---
+  function getEffectiveIndices(item) {
+    let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+    let deletedLogs = currentFolderLogs.filter(l => l.statusText && l.statusText.includes("[SMAZÁNO]"));
+    
+    let totalDeleted = deletedLogs.length;
+    let deletedBeforeCount = deletedLogs.filter(l => (l.listIndex || 0) < (item.listIndex || 0)).length;
+
+    let originalTotal = parseInt(document.getElementById('dbTotalItems').value, 10) || 1;
+    let effectiveTargetRow = (item.listIndex || 0) - deletedBeforeCount;
+    let effectiveTotal = originalTotal - totalDeleted;
+
+    return { effectiveTargetRow, effectiveTotal };
   }
 
   function testGoToItem() {
@@ -328,10 +342,9 @@
 
   function startWriteCycle() {
     if (!serialWriter) return alert("Nejprve připoj makropad!");
-    totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
 
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
-    ensureListIndices(currentFolderLogs); // Automatická oprava indexů, pokud chybí
+    ensureListIndices(currentFolderLogs); 
 
     let mode = document.getElementById('writeModeSelect').value;
 
@@ -356,7 +369,7 @@
 
     if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis.");
 
-    // Seřazení vzestupně pro plynulý zápis shora dolů
+    // Zápis jede shora dolů (Vzestupně)
     writeQueue.sort((a, b) => a.listIndex - b.listIndex);
 
     writeIndex = 0;
@@ -375,32 +388,35 @@
 
     let item = writeQueue[writeIndex];
     let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, '')) || 0;
-    let targetRow = item.listIndex; 
+    
+    // Výpočet efektivní pozice
+    let { effectiveTargetRow, effectiveTotal } = getEffectiveIndices(item);
 
     const ioBox = document.getElementById('macroIO');
     ioBox.value = item.c; ioBox.focus(); ioBox.select(); 
 
-    document.getElementById('stepLabel').textContent = `ZAPISUJI POZICI DB ${posNum} (Řádek: ${targetRow})...`;
+    document.getElementById('stepLabel').textContent = `ZAPISUJI POZICI DB ${posNum} (Efekt. řádek: ${effectiveTargetRow}/${effectiveTotal})...`;
     document.getElementById('stepLabel').style.color = "var(--warn)";
-    sendToMacro(`WRITE_ITEM:${targetRow}:${totalTargetItems}:${getRetardValue()}`);
+    sendToMacro(`WRITE_ITEM:${effectiveTargetRow}:${effectiveTotal}:${getRetardValue()}`);
   }
 
   // --- MAZÁNÍ ---
   function startDeleteCycle() {
     if (!serialWriter) return alert("Nejprve připoj makropad!");
-    totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
 
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
-    ensureListIndices(currentFolderLogs); // Automatická oprava indexů, pokud chybí
+    ensureListIndices(currentFolderLogs);
 
     const checkboxes = document.querySelectorAll('.delete-cb:checked');
     const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-id')));
 
     if (selectedIds.length === 0) return alert("Nejsou zaškrtnuty žádné položky ke smazání.");
 
-    deleteQueue = currentFolderLogs.filter(l => selectedIds.includes(l.id));
+    deleteQueue = currentFolderLogs.filter(l => selectedIds.includes(l.id) && !l.statusText.includes("[SMAZÁNO]"));
 
-    // Seřazení sestupně (odspodu nahoru, ať se neposunou indexy těch nad nimi)
+    if (deleteQueue.length === 0) return alert("Všechny vybrané položky už jsou označeny jako smazané.");
+
+    // Mazání jede odspodu nahoru (Sestupně)
     deleteQueue.sort((a, b) => b.listIndex - a.listIndex);
 
     deleteIndex = 0;
@@ -419,12 +435,30 @@
 
     let item = deleteQueue[deleteIndex];
     let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, '')) || 0;
-    let targetRow = item.listIndex; 
+    
+    // Výpočet efektivní pozice
+    let { effectiveTargetRow, effectiveTotal } = getEffectiveIndices(item);
 
-    document.getElementById('stepLabel').textContent = `MAŽU POZICI DB ${posNum} (Řádek: ${targetRow})...`;
+    document.getElementById('stepLabel').textContent = `MAŽU POZICI DB ${posNum} (Efekt. řádek: ${effectiveTargetRow}/${effectiveTotal})...`;
     document.getElementById('stepLabel').style.color = "var(--err)";
     
-    sendToMacro(`DELETE_ITEM:${targetRow}:${totalTargetItems}:${getRetardValue()}`);
+    sendToMacro(`DELETE_ITEM:${effectiveTargetRow}:${effectiveTotal}:${getRetardValue()}`);
+  }
+
+  // Obnova položky smazané omylem
+  function handleCheckboxChange(cb, id) {
+    const log = appState.logs.find(l => l.id === id);
+    if (!log) return;
+    
+    if (!cb.checked && log.statusText.includes("[SMAZÁNO]")) {
+      if (confirm("Opravdu chcete ZRUŠIT smazání této položky?\n\n(Tím se položka vrátí do aktivního stavu a ostatní pozice se opět dynamicky přepočítají).")) {
+         log.statusText = log.statusText.replace(" [SMAZÁNO]", "");
+         saveState();
+         renderLog();
+      } else {
+         cb.checked = true; // Zrušení akce vrátí fajfku zpět
+      }
+    }
   }
 
   // --- ZPRACOVÁNÍ VSTUPU OD MAKROPADU ---
@@ -633,8 +667,8 @@
       const isDeleted = (item.statusText && item.statusText.includes("[SMAZÁNO]"));
       const isMissing = item.status === 'MISSING';
       
-      const checkedAttr = (isMissing && !isDeleted) ? "checked" : "";
-      const disabledAttr = isDeleted ? "disabled" : "";
+      // Pokud chybí, je defaultně zaškrtnutá, pokud už není smazaná
+      const checkedAttr = (isMissing || isDeleted) ? "checked" : "";
       const rowClass = `row-${item.status}` + (isDeleted ? " deleted-row" : "");
       
       const tr = document.createElement('tr'); 
@@ -643,7 +677,7 @@
       const safeNote = item.note || "";
       tr.innerHTML = `
         <td style="text-align: center;">
-          <input type="checkbox" class="delete-cb" data-id="${item.id}" ${checkedAttr} ${disabledAttr}>
+          <input type="checkbox" class="delete-cb" data-id="${item.id}" ${checkedAttr} onchange="handleCheckboxChange(this, ${item.id})">
         </td>
         <td>${escapeHtml(item.dbPosText)}</td>
         <td>${escapeHtml(item.a)}</td>
