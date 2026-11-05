@@ -6,7 +6,7 @@
 <style>
   :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --muted: #94a3b8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; --dup: #a855f7; --accent: #38bdf8; }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 430px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 440px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
   .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; overflow: hidden; position: relative; }
   h2, h3 { margin: 0; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .macro-target-box { background: #020617; border: 3px solid var(--accent); border-radius: 8px; padding: 12px; text-align: center; }
@@ -26,11 +26,21 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
   th { position: sticky; top: 0; background: #1e293b; color: var(--muted); text-align: left; padding: 10px; border-bottom: 1px solid #334155; z-index: 10; }
   td { padding: 8px 10px; border-bottom: 1px solid #1e293b; font-family: Consolas, monospace; vertical-align: middle; word-wrap: break-word; }
-  tr.row-OK { background: rgba(34, 197, 94, 0.08); } tr.row-MISSING { background: rgba(239, 68, 68, 0.28); color: #fca5a5; font-weight: bold; } tr.row-MULTI { background: rgba(245, 158, 11, 0.25); color: #fde68a; font-weight: bold; } tr.row-DUP { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; } tr.row-DENIED { background: rgba(245, 158, 11, 0.4); color: #fff; font-weight: bold; }
+  
+  tr.row-OK { background: rgba(34, 197, 94, 0.08); } 
+  tr.row-MISSING { background: rgba(239, 68, 68, 0.28); color: #fca5a5; font-weight: bold; } 
+  tr.row-MULTI { background: rgba(245, 158, 11, 0.25); color: #fde68a; font-weight: bold; } 
+  tr.row-DUP { background: rgba(168, 85, 247, 0.22); color: #e9d5ff; } 
+  tr.row-DENIED { background: rgba(245, 158, 11, 0.4); color: #fff; font-weight: bold; }
+  
+  /* Nový styl pro smazané položky */
+  tr.deleted-row td { text-decoration: line-through; opacity: 0.5; }
+  
   .pill { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
   .pill-OK { background: var(--ok); color: #000; } .pill-MISSING { background: var(--err); color: #fff; } .pill-MULTI, .pill-DENIED { background: var(--warn); color: #000; } .pill-DUP { background: var(--dup); color: #fff; }
   .row-flex { display: flex; gap: 8px; align-items: center; }
   input[type="text"], input[type="number"], select { background: #0f172a; border: 1px solid #334155; color: #fff; padding: 4px 6px; border-radius: 4px; width: 100%; font-size: 12px;}
+  input[type="checkbox"] { cursor: pointer; accent-color: var(--err); }
   .del-btn { cursor: pointer; color: var(--err); font-weight: bold; font-size: 14px; background: none; border: none; padding: 0; }
   .del-btn:hover { color: #fca5a5; }
   .export-panel { background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
@@ -88,14 +98,9 @@
       </div>
 
       <!-- NOVÝ Panel pro Mazání z DB -->
-      <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px;">
-        <select id="deleteModeSelect" style="width: 110px;" onchange="toggleDeleteMode()">
-          <option value="missing">Vše CHYBÍ</option>
-          <option value="custom">Vybrané...</option>
-        </select>
-        
-        <input type="text" id="deleteCustomPos" placeholder="např. 5, 12" style="display:none; width: 100px;" title="Zadej čísla pozic z DB oddělená čárkou">
-        <button onclick="startDeleteCycle()" style="flex:1; background:var(--err); color:white;">🗑 Smazat v DB</button>
+      <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px; justify-content: space-between;">
+        <span style="font-size: 11px; color: var(--muted); flex: 1; line-height: 1.3;">Zaškrtni v tabulce položky<br>ke smazání. (Chybějící<br>se zaškrtnou samy).</span>
+        <button onclick="startDeleteCycle()" style="background:var(--err); color:white; padding: 6px 12px; height: 100%;">🗑 Smazat vybrané v DB</button>
       </div>
 
       <!-- Panel s Retardací DB a Scroll Testem -->
@@ -151,7 +156,8 @@
       <table>
         <thead>
           <tr>
-            <th style="width: 110px;">Pozice DB</th>
+            <th style="width: 30px; text-align: center;" title="Vybrat pro smazání v DB">🗑</th>
+            <th style="width: 100px;">Pozice DB</th>
             <th style="width: 20%;">Data A</th>
             <th style="width: 15%;">Data B</th>
             <th style="width: 15%;">Data C</th>
@@ -217,7 +223,6 @@
     if (!appState.activeFolder) appState.activeFolder = appState.folders[0];
     if (!appState.globalSeq) appState.globalSeq = 1;
     
-    // Načtení paměti Excelu
     const savedEx = localStorage.getItem('savedExcelData');
     if (savedEx) {
       document.getElementById('excelInput').value = savedEx;
@@ -341,7 +346,6 @@
 
     if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis.");
 
-    // Pro ZÁPIS řadíme VZESTUPNĚ (odshora dolů)
     writeQueue.sort((a, b) => {
        let idxA = a.listIndex || parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
        let idxB = b.listIndex || parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
@@ -373,34 +377,20 @@
     sendToMacro(`WRITE_ITEM:${targetRow}:${totalTargetItems}:${getRetardValue()}`);
   }
 
-  // --- MAZÁNÍ ---
-  function toggleDeleteMode() {
-    const mode = document.getElementById('deleteModeSelect').value;
-    document.getElementById('deleteCustomPos').style.display = (mode === 'custom') ? 'block' : 'none';
-  }
-
+  // --- MAZÁNÍ PŘES CHECKBOXY ---
   function startDeleteCycle() {
     if (!serialWriter) return alert("Nejprve připoj makropad!");
     totalTargetItems = parseInt(document.getElementById('dbTotalItems').value, 10);
 
-    let mode = document.getElementById('deleteModeSelect').value;
+    const checkboxes = document.querySelectorAll('.delete-cb:checked');
+    const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-id')));
+
+    if (selectedIds.length === 0) return alert("Nejsou zaškrtnuty žádné položky ke smazání.");
+
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+    deleteQueue = currentFolderLogs.filter(l => selectedIds.includes(l.id));
 
-    if (mode === 'missing') {
-      deleteQueue = currentFolderLogs.filter(l => l.status === 'MISSING');
-    } else {
-      let str = document.getElementById('deleteCustomPos').value;
-      let posArray = str.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
-      deleteQueue = [];
-      for (let p of posArray) {
-        let match = currentFolderLogs.find(l => parseInt(l.dbPosText.replace(/[^\d]/g, '')) === p);
-        if (match) deleteQueue.push(match);
-      }
-    }
-
-    if (deleteQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro smazání.");
-
-    // Pro MAZÁNÍ řadíme SESTUPNĚ (odspodu nahoru), aby smazání položky neposunulo indexy těch nad ní!
+    // MAZÁNÍ ŘADÍME SESTUPNĚ (Odspodu nahoru, ať se nerozhodí pozice těch horních)
     deleteQueue.sort((a, b) => {
        let idxA = a.listIndex || parseInt(a.dbPosText.replace(/[^\d]/g, '')) || 0;
        let idxB = b.listIndex || parseInt(b.dbPosText.replace(/[^\d]/g, '')) || 0;
@@ -427,7 +417,6 @@
     document.getElementById('stepLabel').textContent = `MAŽU POZICI DB ${posNum} (Řádek: ${targetRow})...`;
     document.getElementById('stepLabel').style.color = "var(--err)";
     
-    // Nový povel do makropadu
     sendToMacro(`DELETE_ITEM:${targetRow}:${totalTargetItems}:${getRetardValue()}`);
   }
 
@@ -442,14 +431,12 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // Příjem souřadnice ze Single-Point kalibrace
       if (val.startsWith("COORD:")) {
         document.getElementById('foundCoord').textContent = val.replace("COORD:", "").trim();
         resetCycle();
         return;
       }
 
-      // Odpověď z MAZÁNÍ
       if (deleteActive) {
         if (val === "DEL_OK") {
           let item = deleteQueue[deleteIndex];
@@ -461,7 +448,6 @@
         return;
       }
 
-      // Odpověď ze ZÁPISU
       if (writeActive) {
         if (val === "W_OK" || val === "W_DNY") {
           let item = writeQueue[writeIndex];
@@ -547,7 +533,7 @@
       return;
     }
     
-    localStorage.setItem('savedExcelData', raw); // Uložení do paměti prohlížeče
+    localStorage.setItem('savedExcelData', raw); 
 
     const lines = raw.split(/\r?\n/); dbData = []; let totalRows = 0;
     for (let i = 0; i < lines.length; i++) {
@@ -618,7 +604,7 @@
   }
 
   function resetCycle() { 
-    waitingForB = false; tempA = ""; curAEl.textContent = "-"; 
+    waitingForB = false; tempA = ""; 
     readingActive = false; writeActive = false; deleteActive = false; commanderState = 0;
     ioInput.value = ""; stepLabel.textContent = "PŘIPRAVENO (Čekám na data)"; stepLabel.style.color = "var(--accent)"; ioInput.focus(); 
   }
@@ -638,9 +624,21 @@
     if (onlyErr) curLogs = curLogs.filter(l => l.status !== 'OK' && l.status !== 'DUP');
 
     for (const item of curLogs) {
-      const tr = document.createElement('tr'); tr.className = `row-${item.status}`;
+      const isDeleted = (item.statusText && item.statusText.includes("[SMAZÁNO]"));
+      const isMissing = item.status === 'MISSING';
+      
+      const checkedAttr = (isMissing && !isDeleted) ? "checked" : "";
+      const disabledAttr = isDeleted ? "disabled" : "";
+      const rowClass = `row-${item.status}` + (isDeleted ? " deleted-row" : "");
+      
+      const tr = document.createElement('tr'); 
+      tr.className = rowClass;
+      
       const safeNote = item.note || "";
       tr.innerHTML = `
+        <td style="text-align: center;">
+          <input type="checkbox" class="delete-cb" data-id="${item.id}" ${checkedAttr} ${disabledAttr}>
+        </td>
         <td>${escapeHtml(item.dbPosText)}</td>
         <td>${escapeHtml(item.a)}</td>
         <td>${escapeHtml(item.b)}</td>
@@ -652,7 +650,7 @@
             <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="openNoteModal(${item.id})">📝</button>
           </div>
         </td>
-        <td><button class="del-btn" onclick="deleteLog(${item.id})" title="Smazat">🗑</button></td>
+        <td><button class="del-btn" onclick="deleteLog(${item.id})" title="Smazat záznam z tabulky">🗑</button></td>
       `;
       tbody.appendChild(tr);
     }
@@ -741,7 +739,14 @@
        else if (p.status === "MULTI" || p.status === "DENIED") bgColor = "#fcd34d"; 
        else if (p.status === "DUP") bgColor = "#e9d5ff";      
 
-       let style = bgColor ? ` style="background-color:${bgColor};"` : "";
+       let styleAttr = bgColor ? `background-color:${bgColor};` : "";
+       
+       // Přidání přeškrtnutí i do Excelu, pokud byla položka smazána
+       if (p.statusText && p.statusText.includes("[SMAZÁNO]")) {
+           styleAttr += " text-decoration: line-through; color: #999999;";
+       }
+       
+       const style = styleAttr ? ` style="${styleAttr}"` : "";
        
        tableHtml += `
           <tr>
@@ -772,7 +777,6 @@
   
   function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
   
-  // Spustí se hned po načtení stránky
   loadState();
 </script>
 </body>
