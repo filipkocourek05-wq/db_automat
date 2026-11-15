@@ -6,7 +6,7 @@
 <style>
   :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --muted: #94a3b8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; --dup: #a855f7; --accent: #38bdf8; }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 440px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 450px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
   .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; overflow: hidden; position: relative; }
   h2, h3 { margin: 0; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .macro-target-box { background: #020617; border: 3px solid var(--accent); border-radius: 8px; padding: 12px; text-align: center; }
@@ -18,6 +18,8 @@
   button.secondary { background: #334155; color: var(--text); }
   button.danger { background: var(--err); color: #fff; }
   .commander-panel { background: #020617; border: 1px solid #334155; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .cal-panel { background: #020617; border: 2px solid var(--accent); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .cal-instruction { display: none; padding: 10px; background: rgba(245, 158, 11, 0.18); border-left: 4px solid var(--warn); border-radius: 4px; font-size: 12px; line-height: 1.4; }
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; }
   .stat-item { background: #0f172a; padding: 8px 10px; border-radius: 6px; border-left: 4px solid var(--muted); }
   .stat-item.ok { border-color: var(--ok); } .stat-item.err { border-color: var(--err); } .stat-item.warn { border-color: var(--warn); } .stat-item.dup { border-color: var(--dup); }
@@ -43,9 +45,7 @@
   .del-btn:hover { color: #fca5a5; }
   .export-panel { background: #020617; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
-  .modal-box { background: var(--panel); border: 1px solid #334155; border-radius: 8px; padding: 20px; width: 500px; max-width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-  
-  .modal-box label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; margin-top: 8px; }
+  .modal-box { background: var(--panel); border: 1px solid #334155; border-radius: 8px; padding: 20px; width: 420px; max-width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
@@ -60,17 +60,43 @@
     </div>
     
     <div class="row-flex" style="justify-content: space-between; font-size: 12px;">
-      <span>Nová souřadnice: <strong id="foundCoord" style="color:var(--dup); font-family:monospace; font-size:14px;">-</strong></span>
+      <span>Poslední bod: <strong id="foundCoord" style="color:var(--dup); font-family:monospace; font-size:14px;">-</strong></span>
       <button class="secondary" onclick="resetCycle()">Reset cyklu</button>
     </div>
 
+    <!-- NOVÝ PANEL KALIBRACE NA STRÁNCE -->
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
-    <h2>2. Velení Makropadu (Commander)</h2>
+    <h2>2. 🎯 Průvodce kalibrací pozic</h2>
+    <div class="cal-panel">
+      <div class="row-flex">
+        <select id="calModeSelect" style="flex:1;">
+          <option value="EXTRACT">1. Kalibrovat Extrahování (8 bodů)</option>
+          <option value="WRITE">2. Kalibrovat Zápis dat C (9 bodů)</option>
+          <option value="DELETE">3. Kalibrovat Mazání (4 body)</option>
+        </select>
+        <button id="btnStartCal" onclick="startWebCalibration()" style="background:var(--accent); color:#000;">Spustit</button>
+        <button id="btnCancelCal" class="danger" onclick="cancelWebCalibration()" style="display:none;">Zrušit</button>
+      </div>
+
+      <div id="calInstructionBox" class="cal-instruction">
+        <div id="calStepTitle" style="font-weight:bold; color:var(--warn); margin-bottom:4px;"></div>
+        <div id="calStepDesc" style="color:var(--text);"></div>
+      </div>
+
+      <details style="font-size:11px; color:var(--muted);">
+        <summary style="cursor:pointer;">Zobrazit uložené souřadnice v paměti</summary>
+        <div id="coordsTableContainer" style="margin-top:6px; display:grid; grid-template-columns: 1fr 1fr; gap:4px; font-family:monospace;"></div>
+        <button class="secondary" onclick="resetDefaultCoords()" style="margin-top:6px; width:100%; font-size:11px;">Obnovit výchozí souřadnice</button>
+      </details>
+    </div>
+
+    <hr style="border-color:#334155; width:100%; margin:2px 0;">
+    <h2>3. Velení Makropadu (Commander)</h2>
     <div class="commander-panel">
       <!-- Panel pro čtení -->
       <div class="row-flex" style="gap:4px;">
-        <label style="font-size:11px; white-space:nowrap; color: var(--accent); font-weight: bold;">Celkem v DB:</label>
-        <input type="number" id="dbTotalItems" min="1" style="width: 60px; font-weight:bold;" onchange="onTotalItemsChange()" title="Celkový počet položek v této složce">
+        <label style="font-size:11px; white-space:nowrap;">Celkem:</label>
+        <input type="number" id="dbTotalItems" value="50" min="1" style="width: 50px;">
         <label style="font-size:11px; white-space:nowrap; margin-left:4px;">Od:</label>
         <input type="number" id="batchStart" value="1" min="1" style="width: 50px;">
         <label style="font-size:11px; white-space:nowrap; margin-left:4px;">Do:</label>
@@ -115,7 +141,7 @@
     </div>
 
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
-    <h2>3. Import a Nastavení</h2>
+    <h2>4. Import a Nastavení</h2>
     <textarea id="excelInput" placeholder="V Excelu dej Ctrl+A, Ctrl+C, vlož sem (Ctrl+V) a klikni na Načíst..."></textarea>
     <div class="row-flex">
       <button onclick="parseExcel()" style="flex:1;">Načíst Excel (filtr L = Aktuell)</button>
@@ -152,6 +178,15 @@
       <button class="secondary" onclick="exportExcelFile()" style="padding: 4px 12px; font-size: 13px;">Stáhnout Excel</button>
     </div>
 
+    <div class="row-flex" style="background: #0f172a; border: 1px dashed #334155; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px;">
+      <span style="font-size: 12px; color: var(--muted); font-weight: bold; margin-right: 8px; white-space: nowrap;">Ruční přidání:</span>
+      <input type="number" id="manRow" placeholder="Fyz. Řádek (např. 5)" style="width: 130px;" min="1">
+      <input type="text" id="manA" placeholder="Data A (volitelně)" style="flex: 1;">
+      <input type="text" id="manB" placeholder="Data B (volitelně)" style="flex: 1;">
+      <input type="text" id="manC" placeholder="Data C (vlastní)" style="flex: 1;">
+      <button onclick="addManualEntry()" style="background: var(--ok); color: black;">➕ Přidat</button>
+    </div>
+
     <div class="log-container">
       <table>
         <thead>
@@ -171,77 +206,185 @@
     </div>
   </div>
 
-  <!-- NOVÉ UNIVERZÁLNÍ EDITAČNÍ OKNO -->
-  <div id="editItemModal" class="modal-overlay">
+  <div id="noteModal" class="modal-overlay">
     <div class="modal-box">
-      <h3 style="margin-bottom: 15px;">✏️ Upravit položku</h3>
-      
-      <div class="row-flex">
-        <div style="flex:1;">
-          <label>Fyzický řádek (posun):</label>
-          <input type="number" id="edListIndex" min="1">
-        </div>
-        <div style="flex:1;">
-          <label>ID Pozice v DB (Zobrazené):</label>
-          <input type="text" id="edDbPosText">
-        </div>
-      </div>
-
-      <div class="row-flex">
-        <div style="flex:1;">
-          <label>Data A:</label>
-          <input type="text" id="edA">
-        </div>
-        <div style="flex:1;">
-          <label>Data B:</label>
-          <input type="text" id="edB">
-        </div>
-      </div>
-
-      <div>
-        <label>Data C:</label>
-        <input type="text" id="edC">
-      </div>
-
-      <div class="row-flex">
-        <div style="flex:1;">
-          <label>Stav:</label>
-          <select id="edStatus" onchange="handleEdStatusChange()">
-            <option value="OK">OK</option>
-            <option value="MISSING">MISSING (Chybí)</option>
-            <option value="MULTI">MULTI (Více shod)</option>
-            <option value="DUP">DUP (Duplicita)</option>
-            <option value="DENIED">DENIED (Zamítnuto)</option>
-          </select>
-        </div>
-        <div style="flex:1;">
-          <label>Text stavu (vč. značek [SMAZÁNO]):</label>
-          <input type="text" id="edStatusText">
-        </div>
-      </div>
-
-      <div id="edDenyOptionsGroup" style="display: none;">
-        <label>Důvod zamítnutí (Předvolba):</label>
-        <select id="edDenyPresetSelect" onchange="handleEdPresetChange()">
+      <h3 style="margin-bottom: 15px;">Přidat / Upravit poznámku</h3>
+      <div id="denyOptionsGroup" style="margin-bottom: 10px; display: none;">
+        <label style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px;">Důvod zamítnutí:</label>
+        <select id="denyPresetSelect" onchange="handlePresetChange()">
           <option value="Chybí odpovídající testing characteristics">Chybí odpovídající testing characteristics</option>
           <option value="Vícero testing characteristics na výběr se stejným názvem">Vícero testing characteristics na výběr se stejným názvem</option>
           <option value="custom">Vlastní poznámka...</option>
         </select>
       </div>
-      
-      <div>
-        <label>Vlastní poznámka:</label>
-        <input type="text" id="edNoteTextInput" placeholder="Zadej text poznámky..." autocomplete="off">
-      </div>
-
-      <div class="row-flex" style="margin-top: 20px; justify-content: flex-end;">
-        <button class="secondary" onclick="closeEditModal()">Zrušit</button>
-        <button onclick="saveEditModal()">Uložit změny</button>
+      <input type="text" id="noteTextInput" placeholder="Zadej text poznámky..." autocomplete="off">
+      <div class="row-flex" style="margin-top: 15px; justify-content: flex-end;">
+        <button class="secondary" onclick="closeNoteModal()">Zrušit</button>
+        <button onclick="saveNote()">Uložit poznámku</button>
       </div>
     </div>
   </div>
 
 <script>
+  // ============================================================================
+  // 1. DEFINICE A PAMĚŤ KALIBRAČNÍCH SOUŘADNIC
+  // ============================================================================
+  const DEFAULT_COORDS = [
+    { x: 106, y: 161, name: "0: 1. položka v seznamu", hint: "Najeď na první řádek tabulky v databázi." },
+    { x: 92,  y: 237, name: "1: Tlačítko Change", hint: "Najeď na tlačítko Change (můžeš na něj kliknout klávesou 10, ať se otevře detail)." },
+    { x: 328, y: 60,  name: "2: Additional fields", hint: "Najeď na záložku Additional fields (a klikni klávesou 10)." },
+    { x: 99,  y: 94,  name: "3: Pole Data A", hint: "Najeď na textové pole pro kopírování Data A." },
+    { x: 77,  y: 87,  name: "4: Pole Data B", hint: "Najeď na textové pole pro kopírování Data B." },
+    { x: 33,  y: 59,  name: "5: Záložka General", hint: "Najeď na záložku General (a klikni klávesou 10)." },
+    { x: 179, y: 94,  name: "6: Testing characteristics", hint: "Najeď na Testing characteristics (a klikni klávesou 10)." },
+    { x: 160, y: 75,  name: "7: Pole Name (Data C)", hint: "Najeď do pole Name, kam se vkládají Data C." },
+    { x: 463, y: 157, name: "8: Tlačítko Search", hint: "Najeď na tlačítko Search." },
+    { x: 464, y: 220, name: "9: Tlačítko Adopt", hint: "Najeď na tlačítko Adopt." },
+    { x: 45,  y: 54,  name: "10: Pole #macroIO (HTML)", hint: "POZOR: Teď zůstáváme tady na stránce! Najeď na vstupní pole #macroIO." },
+    { x: 78,  y: 74,  name: "11: Pozice 1 (Chyba)", hint: "Najeď na číslo pozice v General." },
+    { x: 444, y: 207, name: "12: Tlačítko Cancel", hint: "Najeď na tlačítko Cancel pro zavření detailu položky." },
+    { x: 78,  y: 54,  name: "13: Pozice 2 (Deny)", hint: "Najeď na číslo pozice po zamítnutí (Deny)." },
+    { x: 147, y: 235, name: "14: Smazat položku", hint: "Najeď na tlačítko pro smazání vybraného řádku." },
+    { x: 278, y: 142, name: "15: Potvrdit smazání", hint: "Najeď na tlačítko potvrzení smazání ve vyskakovacím okně." }
+  ];
+
+  const CALIBRATION_SEQUENCES = {
+    EXTRACT: [10, 0, 1, 2, 3, 4, 5, 12],
+    WRITE:   [10, 0, 1, 5, 6, 7, 8, 9, 13],
+    DELETE:  [10, 0, 14, 15]
+  };
+
+  let storedCoords = [];
+  let activeCalQueue = [];
+  let activeCalStep = 0;
+  let isWebCalibrating = false;
+
+  function loadCoordsFromStorage() {
+    const saved = localStorage.getItem("makropad_coords_v1");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        storedCoords = DEFAULT_COORDS.map((def, i) => ({
+          ...def,
+          x: (parsed[i] && typeof parsed[i].x === "number") ? parsed[i].x : def.x,
+          y: (parsed[i] && typeof parsed[i].y === "number") ? parsed[i].y : def.y
+        }));
+      } catch (e) {
+        storedCoords = JSON.parse(JSON.stringify(DEFAULT_COORDS));
+      }
+    } else {
+      storedCoords = JSON.parse(JSON.stringify(DEFAULT_COORDS));
+    }
+    renderCoordsTable();
+  }
+
+  function saveCoordsToStorage() {
+    const minimal = storedCoords.map(c => ({ x: c.x, y: c.y }));
+    localStorage.setItem("makropad_coords_v1", JSON.stringify(minimal));
+    renderCoordsTable();
+  }
+
+  function resetDefaultCoords() {
+    if (confirm("Opravdu chceš přepsat nakalibrované pozice zpět na výchozí hodnoty?")) {
+      localStorage.removeItem("makropad_coords_v1");
+      loadCoordsFromStorage();
+      syncCoordsToMacro();
+    }
+  }
+
+  function renderCoordsTable() {
+    const container = document.getElementById("coordsTableContainer");
+    if (!container) return;
+    container.innerHTML = storedCoords.map(c => 
+      `<div style="background:#0f172a; padding:3px 6px; border:1px solid #334155; border-radius:4px;">
+        ${c.name}: <b style="color:var(--accent);">[${c.x},${c.y}]</b>
+      </div>`
+    ).join("");
+  }
+
+  async function syncCoordsToMacro() {
+    if (!serialWriter) return;
+    const payload = storedCoords.map(c => `${c.x},${c.y}`).join(";");
+    await sendToMacro(`SET_COORDS:${payload}`);
+  }
+
+  async function startWebCalibration() {
+    if (!serialWriter) return alert("Nejprve připoj makropad přes USB tlačítkem nahoře!");
+    const mode = document.getElementById("calModeSelect").value;
+    activeCalQueue = CALIBRATION_SEQUENCES[mode];
+    activeCalStep = 0;
+    isWebCalibrating = true;
+
+    document.getElementById("btnStartCal").style.display = "none";
+    document.getElementById("btnCancelCal").style.display = "inline-block";
+    document.getElementById("calInstructionBox").style.display = "block";
+
+    await syncCoordsToMacro();
+    await promptNextCalibrationPoint();
+  }
+
+  async function promptNextCalibrationPoint() {
+    if (!isWebCalibrating || activeCalStep >= activeCalQueue.length) {
+      finishWebCalibration();
+      return;
+    }
+
+    const ptIndex = activeCalQueue[activeCalStep];
+    const ptInfo = storedCoords[ptIndex];
+
+    document.getElementById("calStepTitle").innerText = 
+      `Krok ${activeCalStep + 1}/${activeCalQueue.length}: ${ptInfo.name} (nyní [${ptInfo.x}, ${ptInfo.y}])`;
+    document.getElementById("calStepDesc").innerText = 
+      `1. Stiskni na makropadu POTVRDIT (16) -> makropad najede na pozici.\n` +
+      `2. Dolaď šipkami (${ptInfo.hint}) a stiskni znovu POTVRDIT (16).`;
+
+    await sendToMacro(`CAL_WAIT:${ptIndex}`);
+  }
+
+  async function cancelWebCalibration() {
+    isWebCalibrating = false;
+    document.getElementById("btnStartCal").style.display = "inline-block";
+    document.getElementById("btnCancelCal").style.display = "none";
+    document.getElementById("calInstructionBox").style.display = "none";
+    await sendToMacro("CAL_CANCEL");
+  }
+
+  function finishWebCalibration() {
+    isWebCalibrating = false;
+    document.getElementById("btnStartCal").style.display = "inline-block";
+    document.getElementById("btnCancelCal").style.display = "none";
+    document.getElementById("calStepTitle").innerText = "✅ Kalibrace je kompletní a uložena!";
+    document.getElementById("calStepDesc").innerText = "Stránka si pozice pamatuje a automaticky je pošle makropadu před každou úlohou.";
+  }
+
+  function handleCalibrationInput(rawText) {
+    const text = rawText.trim();
+    if (!text.startsWith("CAL_PT:")) return false;
+
+    const parts = text.split(":");
+    if (parts.length === 4) {
+      const idx = parseInt(parts[1], 10);
+      const newX = parseInt(parts[2], 10);
+      const newY = parseInt(parts[3], 10);
+
+      if (!isNaN(idx) && idx >= 0 && idx < storedCoords.length) {
+        storedCoords[idx].x = newX;
+        storedCoords[idx].y = newY;
+        saveCoordsToStorage();
+        document.getElementById('foundCoord').textContent = `Bod ${idx}: [${newX}, ${newY}]`;
+
+        if (isWebCalibrating) {
+          activeCalStep++;
+          promptNextCalibrationPoint();
+        }
+      }
+    }
+    return true;
+  }
+
+  // ============================================================================
+  // 2. HLAVNÍ APLIKAČNÍ LOGIKA A STAV
+  // ============================================================================
   let dbData = [];
   let currentEditingLogId = null;
 
@@ -263,17 +406,16 @@
 
   let waitingForB = false;
 
-  // Rozšířený appState o paměť počtu položek (folderTotals)
-  let appState = { folders: ["Výchozí složka"], activeFolder: "Výchozí složka", logs: [], globalSeq: 1, folderTotals: {} };
+  let appState = { folders: ["Výchozí složka"], activeFolder: "Výchozí složka", logs: [], globalSeq: 1 };
 
   function saveState() { localStorage.setItem('dbAutomatState', JSON.stringify(appState)); }
   function loadState() {
+    loadCoordsFromStorage();
     const saved = localStorage.getItem('dbAutomatState');
     if (saved) { appState = JSON.parse(saved); }
     if (!appState.folders || appState.folders.length === 0) appState.folders = ["Výchozí složka"];
     if (!appState.activeFolder) appState.activeFolder = appState.folders[0];
     if (!appState.globalSeq) appState.globalSeq = 1;
-    if (!appState.folderTotals) appState.folderTotals = {};
     
     const savedEx = localStorage.getItem('savedExcelData');
     if (savedEx) {
@@ -281,28 +423,7 @@
       parseExcel(true);
     }
 
-    renderFolders(); 
-    updateUITotal(); 
-    updateStats(); 
-    renderLog();
-  }
-
-  // --- LOGIKA PRO CELKOVÝ POČET POLOŽEK ---
-  function updateUITotal() {
-    let t = appState.folderTotals[appState.activeFolder];
-    if (t === undefined || isNaN(t)) { 
-        t = 50; // Výchozí hodnota
-        appState.folderTotals[appState.activeFolder] = t; 
-    }
-    document.getElementById('dbTotalItems').value = t;
-  }
-
-  function onTotalItemsChange() {
-    let t = parseInt(document.getElementById('dbTotalItems').value, 10);
-    if (t > 0) {
-      appState.folderTotals[appState.activeFolder] = t;
-      saveState();
-    }
+    renderFolders(); updateStats(); renderLog();
   }
 
   function renderFolders() {
@@ -314,19 +435,12 @@
       sel.appendChild(opt);
     });
   }
-  function changeFolder() { 
-      appState.activeFolder = document.getElementById('folderSelect').value; 
-      saveState(); 
-      updateUITotal(); 
-      renderLog(); 
-      updateStats(); 
-  }
+  function changeFolder() { appState.activeFolder = document.getElementById('folderSelect').value; saveState(); renderLog(); updateStats(); }
   function addFolder() {
     const name = prompt("Název nové složky pro logy:");
     if (name && name.trim() !== "" && !appState.folders.includes(name)) {
       appState.folders.push(name.trim()); appState.activeFolder = name.trim();
-      appState.folderTotals[name.trim()] = 50;
-      saveState(); renderFolders(); updateUITotal(); renderLog(); updateStats();
+      saveState(); renderFolders(); renderLog(); updateStats();
     }
   }
   function deleteFolder() {
@@ -334,9 +448,8 @@
     if (confirm(`Opravdu smazat složku "${appState.activeFolder}" a všechny její logy?`)) {
       appState.logs = appState.logs.filter(l => l.folder !== appState.activeFolder);
       appState.folders = appState.folders.filter(f => f !== appState.activeFolder);
-      delete appState.folderTotals[appState.activeFolder];
       appState.activeFolder = appState.folders[0];
-      saveState(); renderFolders(); updateUITotal(); renderLog(); updateStats();
+      saveState(); renderFolders(); renderLog(); updateStats();
     }
   }
 
@@ -347,12 +460,13 @@
       await serialPort.open({ baudRate: 9600 });
       const textEncoder = new TextEncoderStream(); textEncoder.readable.pipeTo(serialPort.writable);
       serialWriter = textEncoder.writable.getWriter();
-      updateMacropadState();
+      await updateMacropadState();
     } catch (e) { alert("Nepodařilo se připojit: " + e); }
   }
   async function updateMacropadState() {
     const btn = document.getElementById('btnConnect');
     if (serialWriter) {
+      await syncCoordsToMacro();
       await sendToMacro("READY"); 
       btn.textContent = "ZAPOJENO"; btn.style.background = "var(--ok)"; btn.style.color = "#000";
     }
@@ -363,7 +477,6 @@
     return parseInt(document.getElementById('dbRetard').value, 10) || 0;
   }
 
-  // --- AUTOMATICKÁ OPRAVA INDEXŮ ŘÁDKŮ ---
   function ensureListIndices(logsArray) {
     let needsFix = logsArray.some(l => !l.listIndex);
     if (needsFix) {
@@ -373,29 +486,30 @@
     }
   }
 
-  // --- CHYTRÉ DOPOČÍTÁVÁNÍ (EFEKTIVNÍ INDEX) ---
   function getEffectiveIndices(item) {
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
     let deletedLogs = currentFolderLogs.filter(l => l.statusText && l.statusText.includes("[SMAZÁNO]"));
     
+    let totalDeleted = deletedLogs.length;
     let deletedBeforeCount = deletedLogs.filter(l => (l.listIndex || 0) < (item.listIndex || 0)).length;
 
-    // effectiveTotal je nyní jednoduše to, co aktuálně svítí v kolonce (protože při smazání se kolonka sama sníží)
-    let effectiveTotal = parseInt(document.getElementById('dbTotalItems').value, 10) || 1;
+    let originalTotal = parseInt(document.getElementById('dbTotalItems').value, 10) || 1;
     let effectiveTargetRow = (item.listIndex || 0) - deletedBeforeCount;
+    let effectiveTotal = originalTotal - totalDeleted;
 
     return { effectiveTargetRow, effectiveTotal };
   }
 
-  function testGoToItem() {
+  async function testGoToItem() {
     const N = parseInt(document.getElementById('dbTotalItems').value, 10);
     const X = parseInt(document.getElementById('testTargetItem').value, 10);
     if (!serialWriter) return alert("Nejprve připoj makropad!");
     document.getElementById('stepLabel').textContent = `SCROLL TEST: Hledám položku ${X}/${N}...`;
-    sendToMacro(`GOTO:${X}:${N}:${getRetardValue()}`);
+    await syncCoordsToMacro();
+    await sendToMacro(`GOTO:${X}:${N}:${getRetardValue()}`);
   }
 
-  function startReadingCycle() {
+  async function startReadingCycle() {
     if (!serialWriter) return alert("Nejprve připoj makropad!");
     if (dbData.length === 0) return alert("Nejprve načti Excel!");
     
@@ -413,17 +527,17 @@
     
     document.getElementById('stepLabel').textContent = `ČTU POLOŽKU ${currentTargetItem} (Cíl: ${batchEndItem})...`;
     document.getElementById('stepLabel').style.color = "var(--accent)";
-    sendToMacro(`READ_BATCH:${startItem}:${batchEndItem}:${totalTargetItems}:${getRetardValue()}`);
+    await syncCoordsToMacro();
+    await sendToMacro(`READ_BATCH:${startItem}:${batchEndItem}:${totalTargetItems}:${getRetardValue()}`);
   }
 
-  // --- ZÁPIS ---
   function toggleWriteMode() {
     const mode = document.getElementById('writeModeSelect').value;
     document.getElementById('writeCustomPos').style.display = (mode === 'custom') ? 'block' : 'none';
     document.getElementById('writeRangeInputs').style.display = (mode === 'ok_range') ? 'flex' : 'none';
   }
 
-  function startWriteCycle() {
+  async function startWriteCycle() {
     if (!serialWriter) return alert("Nejprve připoj makropad!");
 
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
@@ -452,11 +566,11 @@
 
     if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis.");
 
-    // Zápis jede shora dolů (Vzestupně)
     writeQueue.sort((a, b) => a.listIndex - b.listIndex);
 
     writeIndex = 0;
     writeActive = true; readingActive = false; deleteActive = false;
+    await syncCoordsToMacro();
     processNextWriteItem();
   }
 
@@ -471,12 +585,6 @@
 
     let item = writeQueue[writeIndex];
     let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, '')) || 0;
-    
-    if (!item.listIndex) {
-      alert(`CHYBA: Položka s DB ID ${posNum} neobsahuje fyzické číslo řádku (byla načtena starým způsobem).\n\nProsím, nejprve na stránce proveďte nový 🔍 Extrakt.`);
-      writeActive = false; resetCycle(); return;
-    }
-
     let { effectiveTargetRow, effectiveTotal } = getEffectiveIndices(item);
 
     const ioBox = document.getElementById('macroIO');
@@ -487,8 +595,7 @@
     sendToMacro(`WRITE_ITEM:${effectiveTargetRow}:${effectiveTotal}:${getRetardValue()}`);
   }
 
-  // --- MAZÁNÍ ---
-  function startDeleteCycle() {
+  async function startDeleteCycle() {
     if (!serialWriter) return alert("Nejprve připoj makropad!");
 
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
@@ -503,11 +610,11 @@
 
     if (deleteQueue.length === 0) return alert("Všechny vybrané položky už jsou označeny jako smazané.");
 
-    // Mazání jede odspodu nahoru (Sestupně)
     deleteQueue.sort((a, b) => b.listIndex - a.listIndex);
 
     deleteIndex = 0;
     deleteActive = true; writeActive = false; readingActive = false;
+    await syncCoordsToMacro();
     processNextDeleteItem();
   }
 
@@ -522,12 +629,6 @@
 
     let item = deleteQueue[deleteIndex];
     let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, '')) || 0;
-    
-    if (!item.listIndex) {
-      alert(`CHYBA: Položka s DB ID ${posNum} neobsahuje fyzické číslo řádku.\n\nProveďte nový 🔍 Extrakt.`);
-      deleteActive = false; resetCycle(); return;
-    }
-
     let { effectiveTargetRow, effectiveTotal } = getEffectiveIndices(item);
 
     document.getElementById('stepLabel').textContent = `MAŽU POZICI DB ${posNum} (Efekt. řádek: ${effectiveTargetRow}/${effectiveTotal})...`;
@@ -536,39 +637,74 @@
     sendToMacro(`DELETE_ITEM:${effectiveTargetRow}:${effectiveTotal}:${getRetardValue()}`);
   }
 
-  // --- ZPRACOVÁNÍ CHECKBOXŮ (Obnova po smazání) ---
   function handleCheckboxChange(cb, id) {
     const log = appState.logs.find(l => l.id === id);
     if (!log) return;
     
-    // Pokud je položka odškrtnuta a už byla smazaná -> chce ji oživit
     if (!cb.checked && log.statusText.includes("[SMAZÁNO]")) {
-      if (confirm("Opravdu chcete ZRUŠIT smazání této položky (např. protože jste neuložili DB)?\n\n(Položka se obnoví a celkový počet v DB se o 1 zvýší, aby makropad správně počítal posun).")) {
+      if (confirm("Opravdu chcete ZRUŠIT smazání této položky?")) {
          log.statusText = log.statusText.replace(" [SMAZÁNO]", "");
-         
-         // Zvýšení celkového počtu
-         let currentTotal = parseInt(document.getElementById('dbTotalItems').value, 10) || 1;
-         currentTotal++;
-         document.getElementById('dbTotalItems').value = currentTotal;
-         appState.folderTotals[appState.activeFolder] = currentTotal;
-
-         saveState(); renderLog();
+         saveState();
+         renderLog();
       } else {
-         cb.checked = true; // Zrušení akce vrátí fajfku zpět
+         cb.checked = true;
       }
     }
+  }
+
+  function addManualEntry() {
+    const rowVal = document.getElementById('manRow').value.trim();
+    const aVal = document.getElementById('manA').value.trim();
+    const bVal = document.getElementById('manB').value.trim();
+    let cVal = document.getElementById('manC').value.trim();
+
+    if (!rowVal) return alert("Musíš zadat fyzický řádek, na kterém se položka nachází!");
+
+    let status = "OK";
+    let statusText = "OK (Ručně)";
+
+    if (!cVal && (aVal || bVal) && dbData.length > 0) {
+      const normA = aVal.toLowerCase(); const normB = bVal.toLowerCase();
+      const matches = dbData.filter(item => item.a.toLowerCase() === normA && item.b.toLowerCase() === normB);
+      
+      if (matches.length === 0) {
+        status = "MISSING"; cVal = document.getElementById('fallbackVal').value; statusText = "CHYBÍ V EXCELU (Ručně)";
+      } else if (matches.length > 1) {
+        status = "MULTI"; cVal = matches[0].f; statusText = `VÍCE SHOD (${matches.length}x) (Ručně)`;
+      } else {
+        cVal = matches[0].f;
+      }
+    }
+
+    const newLog = {
+      id: Date.now(), folder: appState.activeFolder, seq: appState.globalSeq++,
+      listIndex: parseInt(rowVal, 10),
+      dbPosText: "Pozice: " + rowVal, 
+      a: aVal, b: bVal, c: cVal, status: status, statusText: statusText, note: ""
+    };
+    appState.logs.unshift(newLog); 
+    saveState(); updateStats(); renderLog();
+
+    document.getElementById('manRow').value = "";
+    document.getElementById('manA').value = "";
+    document.getElementById('manB').value = "";
+    document.getElementById('manC').value = "";
   }
 
   // --- ZPRACOVÁNÍ VSTUPU OD MAKROPADU ---
   const ioInput = document.getElementById('macroIO');
   const stepLabel = document.getElementById('stepLabel');
-  const curAEl = document.getElementById('curA');
 
   ioInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
       const val = ioInput.value.trim();
       ioInput.value = "";
+
+      // 1. Kontrola, zda jde o kalibrační bod z průvodce (CAL_PT:idx:X:Y)
+      if (handleCalibrationInput(val)) {
+        return;
+      }
 
       if (val.startsWith("COORD:")) {
         document.getElementById('foundCoord').textContent = val.replace("COORD:", "").trim();
@@ -579,15 +715,7 @@
       if (deleteActive) {
         if (val === "DEL_OK") {
           let item = deleteQueue[deleteIndex];
-          if (!item.statusText.includes("[SMAZÁNO]")) {
-              item.statusText += " [SMAZÁNO]";
-              
-              // SNÍŽENÍ CELKOVÉHO POČTU POLOŽEK
-              let currentTotal = parseInt(document.getElementById('dbTotalItems').value, 10) || 1;
-              if (currentTotal > 0) currentTotal--;
-              document.getElementById('dbTotalItems').value = currentTotal;
-              appState.folderTotals[appState.activeFolder] = currentTotal;
-          }
+          if (!item.statusText.includes("[SMAZÁNO]")) item.statusText += " [SMAZÁNO]";
           saveState(); renderLog(); updateStats();
           deleteIndex++;
           processNextDeleteItem();
@@ -648,7 +776,6 @@
 
       if (!waitingForB) {
         tempA = val; waitingForB = true; 
-        curAEl.textContent = tempA || "(prázdné)";
         stepLabel.textContent = "ČEKÁM NA DATA B"; stepLabel.style.color = "#f59e0b";
       } else {
         const tempBVal = val; waitingForB = false;
@@ -792,10 +919,10 @@
         <td>
           <div class="row-flex" style="justify-content:space-between; width:100%;">
             <span style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block; max-width: 140px;" title="${escapeHtml(safeNote)}">${escapeHtml(safeNote)}</span>
-            <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="openEditModal(${item.id})" title="Upravit položku">✏️</button>
+            <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="openNoteModal(${item.id})">📝</button>
           </div>
         </td>
-        <td><button class="del-btn" onclick="deleteLog(${item.id})" title="Vymazat tento záznam z HTML tabulky">🗑</button></td>
+        <td><button class="del-btn" onclick="deleteLog(${item.id})" title="Smazat záznam z tabulky">🗑</button></td>
       `;
       tbody.appendChild(tr);
     }
@@ -803,24 +930,14 @@
 
   function deleteLog(id) { appState.logs = appState.logs.filter(l => l.id !== id); saveState(); updateStats(); renderLog(); }
   
-  // --- NOVÝ UNIVERZÁLNÍ EDITOR POLOŽEK ---
-  function openEditModal(id) {
+  function openNoteModal(id) {
     const log = appState.logs.find(l => l.id === id);
     if (!log) return;
     currentEditingLogId = id;
-    
-    document.getElementById('edListIndex').value = log.listIndex || "";
-    document.getElementById('edDbPosText').value = log.dbPosText || "";
-    document.getElementById('edA').value = log.a || "";
-    document.getElementById('edB').value = log.b || "";
-    document.getElementById('edC').value = log.c || "";
-    
-    document.getElementById('edStatus').value = log.status || "OK";
-    document.getElementById('edStatusText').value = log.statusText || "";
-
-    const denyGroup = document.getElementById('edDenyOptionsGroup');
-    const presetSelect = document.getElementById('edDenyPresetSelect');
-    const txtInput = document.getElementById('edNoteTextInput');
+    const modal = document.getElementById('noteModal');
+    const denyGroup = document.getElementById('denyOptionsGroup');
+    const presetSelect = document.getElementById('denyPresetSelect');
+    const txtInput = document.getElementById('noteTextInput');
     const existingNote = log.note || "";
     
     if (log.status === 'DENIED') {
@@ -835,54 +952,23 @@
     } else {
       denyGroup.style.display = 'none'; txtInput.style.display = 'block'; txtInput.value = existingNote;
     }
-    
-    document.getElementById('editItemModal').style.display = 'flex'; 
+    modal.style.display = 'flex'; if (txtInput.style.display === 'block') txtInput.focus();
   }
 
-  function handleEdStatusChange() {
-    const s = document.getElementById('edStatus').value;
-    const denyGroup = document.getElementById('edDenyOptionsGroup');
-    const txtInput = document.getElementById('edNoteTextInput');
-    
-    if (s === 'DENIED') {
-      denyGroup.style.display = 'block';
-      document.getElementById('edDenyPresetSelect').value = "Chybí odpovídající testing characteristics";
-      txtInput.style.display = 'none';
-    } else {
-      denyGroup.style.display = 'none';
-      txtInput.style.display = 'block';
-    }
-  }
-
-  function handleEdPresetChange() {
-    const presetSelect = document.getElementById('edDenyPresetSelect'); 
-    const txtInput = document.getElementById('edNoteTextInput');
+  function handlePresetChange() {
+    const presetSelect = document.getElementById('denyPresetSelect'); const txtInput = document.getElementById('noteTextInput');
     if (presetSelect.value === 'custom') { txtInput.style.display = 'block'; txtInput.focus(); txtInput.value = ""; } 
     else { txtInput.style.display = 'none'; }
   }
 
-  function closeEditModal() { document.getElementById('editItemModal').style.display = 'none'; currentEditingLogId = null; }
-  
-  function saveEditModal() {
+  function closeNoteModal() { document.getElementById('noteModal').style.display = 'none'; currentEditingLogId = null; }
+  function saveNote() {
     if (!currentEditingLogId) return;
     const log = appState.logs.find(l => l.id === currentEditingLogId);
     if (!log) return;
-    
-    let lIdx = parseInt(document.getElementById('edListIndex').value, 10);
-    log.listIndex = isNaN(lIdx) ? null : lIdx;
-    log.dbPosText = document.getElementById('edDbPosText').value.trim();
-    log.a = document.getElementById('edA').value.trim();
-    log.b = document.getElementById('edB').value.trim();
-    log.c = document.getElementById('edC').value.trim();
-    
-    log.status = document.getElementById('edStatus').value;
-    log.statusText = document.getElementById('edStatusText').value.trim();
-
-    const presetSelect = document.getElementById('edDenyPresetSelect'); 
-    const txtInput = document.getElementById('edNoteTextInput');
+    const presetSelect = document.getElementById('denyPresetSelect'); const txtInput = document.getElementById('noteTextInput');
     log.note = (log.status === 'DENIED' && presetSelect.value !== 'custom') ? presetSelect.value : txtInput.value.trim();
-    
-    saveState(); renderLog(); updateStats(); closeEditModal();
+    saveState(); renderLog(); closeNoteModal();
   }
 
   function exportExcelFile() {
