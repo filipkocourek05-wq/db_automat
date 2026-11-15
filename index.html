@@ -6,7 +6,7 @@
 <style>
   :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --muted: #94a3b8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; --dup: #a855f7; --accent: #38bdf8; }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 450px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 460px 1fr; gap: 16px; height: 100vh; overflow: hidden; }
   .card { background: var(--panel); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; overflow: hidden; position: relative; }
   h2, h3 { margin: 0; font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .macro-target-box { background: #020617; border: 3px solid var(--accent); border-radius: 8px; padding: 12px; text-align: center; }
@@ -18,8 +18,14 @@
   button.secondary { background: #334155; color: var(--text); }
   button.danger { background: var(--err); color: #fff; }
   .commander-panel { background: #020617; border: 1px solid #334155; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
-  .cal-panel { background: #020617; border: 2px solid var(--accent); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
-  .cal-instruction { display: none; padding: 10px; background: rgba(245, 158, 11, 0.18); border-left: 4px solid var(--warn); border-radius: 4px; font-size: 12px; line-height: 1.4; }
+  .cal-panel { background: #020617; border: 2px solid var(--accent); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
+  
+  /* VELKÝ VÝRAZNÝ DISPLEJ PRO KALIBRACI */
+  .cal-big-display { display: none; padding: 14px; background: #1e1b4b; border: 3px solid var(--warn); border-radius: 8px; text-align: center; }
+  .cal-step-badge { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .cal-target-name { font-size: 26px; font-weight: 900; color: var(--warn); margin: 6px 0; text-transform: uppercase; line-height: 1.2; }
+  .cal-action-hint { font-size: 14px; color: #fff; background: rgba(255,255,255,0.08); padding: 8px; border-radius: 6px; margin-top: 8px; line-height: 1.4; }
+
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; }
   .stat-item { background: #0f172a; padding: 8px 10px; border-radius: 6px; border-left: 4px solid var(--muted); }
   .stat-item.ok { border-color: var(--ok); } .stat-item.err { border-color: var(--err); } .stat-item.warn { border-color: var(--warn); } .stat-item.dup { border-color: var(--dup); }
@@ -56,31 +62,35 @@
     </div>
     <div class="macro-target-box">
       <label id="stepLabel">PŘIPRAVENO (Přijímám data od makropadu)</label>
-      <input type="text" id="macroIO" placeholder="SEM NAKALIBRUJ BOD 10" autocomplete="off">
+      <input type="text" id="macroIO" placeholder="KOMUNIKAČNÍ POLE (#macroIO)" autocomplete="off">
     </div>
     
     <div class="row-flex" style="justify-content: space-between; font-size: 12px;">
-      <span>Poslední bod: <strong id="foundCoord" style="color:var(--dup); font-family:monospace; font-size:14px;">-</strong></span>
+      <span>Poslední uložený bod: <strong id="foundCoord" style="color:var(--dup); font-family:monospace; font-size:14px;">-</strong></span>
       <button class="secondary" onclick="resetCycle()">Reset cyklu</button>
     </div>
 
-    <!-- NOVÝ PANEL KALIBRACE NA STRÁNCE -->
+    <!-- PANEL KALIBRACE NA STRÁNCE (POTVRZOVÁNÍ TLAČÍTKEM 4) -->
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
-    <h2>2. 🎯 Průvodce kalibrací pozic</h2>
+    <h2>2. 🎯 Kalibrace pozic (Tlačítkem 4)</h2>
     <div class="cal-panel">
       <div class="row-flex">
-        <select id="calModeSelect" style="flex:1;">
-          <option value="EXTRACT">1. Kalibrovat Extrahování (8 bodů)</option>
-          <option value="WRITE">2. Kalibrovat Zápis dat C (9 bodů)</option>
-          <option value="DELETE">3. Kalibrovat Mazání (4 body)</option>
+        <select id="calModeSelect" style="flex:1; font-size:13px; padding:6px;">
+          <option value="EXTRACT">Extrahování dat (7 pozic)</option>
+          <option value="WRITE">Zápis dat C (8 pozic)</option>
+          <option value="DELETE">Smazání položky (3 pozice)</option>
         </select>
-        <button id="btnStartCal" onclick="startWebCalibration()" style="background:var(--accent); color:#000;">Spustit</button>
-        <button id="btnCancelCal" class="danger" onclick="cancelWebCalibration()" style="display:none;">Zrušit</button>
+        <button id="btnStartCal" onclick="startWebCalibration()" style="background:var(--accent); color:#000; padding:7px 14px;">Spustit kalibraci</button>
+        <button id="btnCancelCal" class="danger" onclick="cancelWebCalibration()" style="display:none; padding:7px 14px;">Zrušit</button>
       </div>
 
-      <div id="calInstructionBox" class="cal-instruction">
-        <div id="calStepTitle" style="font-weight:bold; color:var(--warn); margin-bottom:4px;"></div>
-        <div id="calStepDesc" style="color:var(--text);"></div>
+      <!-- VELKÝ BOX S NÁZVEM POZICE -->
+      <div id="calInstructionBox" class="cal-big-display">
+        <div id="calStepBadge" class="cal-step-badge">KROK 1 Z 7</div>
+        <div id="calTargetName" class="cal-target-name">1. POLOŽKA V SEZNAMU</div>
+        <div id="calActionHint" class="cal-action-hint">
+          Stiskni <b>Tlačítko 4</b> ➔ Makropad přepne okno (Alt+Tab), najeď šipkami na pozici a znovu potvrď <b>Tlačítkem 4</b>.
+        </div>
       </div>
 
       <details style="font-size:11px; color:var(--muted);">
@@ -93,7 +103,6 @@
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
     <h2>3. Velení Makropadu (Commander)</h2>
     <div class="commander-panel">
-      <!-- Panel pro čtení -->
       <div class="row-flex" style="gap:4px;">
         <label style="font-size:11px; white-space:nowrap;">Celkem:</label>
         <input type="number" id="dbTotalItems" value="50" min="1" style="width: 50px;">
@@ -104,7 +113,6 @@
         <button onclick="startReadingCycle()" style="flex:1; background:var(--ok);">🔍 Extrakt</button>
       </div>
       
-      <!-- Panel pro zápis do DB -->
       <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px;">
         <select id="writeModeSelect" style="width: 110px;" onchange="toggleWriteMode()">
           <option value="ok_all">Vše OK</option>
@@ -123,13 +131,11 @@
         <button onclick="startWriteCycle()" style="flex:1; background:var(--warn); color:black;">✍️ Zapsat</button>
       </div>
 
-      <!-- Panel pro Mazání z DB -->
       <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px; justify-content: space-between;">
         <span style="font-size: 11px; color: var(--muted); flex: 1; line-height: 1.3;">Zaškrtni v tabulce položky<br>ke smazání. (Chybějící<br>se zaškrtnou samy).</span>
         <button onclick="startDeleteCycle()" style="background:var(--err); color:white; padding: 6px 12px; height: 100%;">🗑 Smazat vybrané v DB</button>
       </div>
 
-      <!-- Panel s Retardací DB a Scroll Testem -->
       <div class="row-flex" style="margin-top: 8px; border-top: 1px dashed #334155; padding-top: 8px;">
         <label style="font-size:11px; white-space:nowrap; color:var(--muted);">Skok na pol.:</label>
         <input type="number" id="testTargetItem" value="43" min="1" style="width: 50px;">
@@ -227,31 +233,32 @@
 
 <script>
   // ============================================================================
-  // 1. DEFINICE A PAMĚŤ KALIBRAČNÍCH SOUŘADNIC
+  // 1. DEFINICE A PAMĚŤ KALIBRAČNÍCH SOUŘADNIC (BEZ #macroIO)
   // ============================================================================
   const DEFAULT_COORDS = [
-    { x: 106, y: 161, name: "0: 1. položka v seznamu", hint: "Najeď na první řádek tabulky v databázi." },
-    { x: 92,  y: 237, name: "1: Tlačítko Change", hint: "Najeď na tlačítko Change (můžeš na něj kliknout klávesou 10, ať se otevře detail)." },
-    { x: 328, y: 60,  name: "2: Additional fields", hint: "Najeď na záložku Additional fields (a klikni klávesou 10)." },
-    { x: 99,  y: 94,  name: "3: Pole Data A", hint: "Najeď na textové pole pro kopírování Data A." },
-    { x: 77,  y: 87,  name: "4: Pole Data B", hint: "Najeď na textové pole pro kopírování Data B." },
-    { x: 33,  y: 59,  name: "5: Záložka General", hint: "Najeď na záložku General (a klikni klávesou 10)." },
-    { x: 179, y: 94,  name: "6: Testing characteristics", hint: "Najeď na Testing characteristics (a klikni klávesou 10)." },
-    { x: 160, y: 75,  name: "7: Pole Name (Data C)", hint: "Najeď do pole Name, kam se vkládají Data C." },
-    { x: 463, y: 157, name: "8: Tlačítko Search", hint: "Najeď na tlačítko Search." },
-    { x: 464, y: 220, name: "9: Tlačítko Adopt", hint: "Najeď na tlačítko Adopt." },
-    { x: 45,  y: 54,  name: "10: Pole #macroIO (HTML)", hint: "POZOR: Teď zůstáváme tady na stránce! Najeď na vstupní pole #macroIO." },
-    { x: 78,  y: 74,  name: "11: Pozice 1 (Chyba)", hint: "Najeď na číslo pozice v General." },
-    { x: 444, y: 207, name: "12: Tlačítko Cancel", hint: "Najeď na tlačítko Cancel pro zavření detailu položky." },
-    { x: 78,  y: 54,  name: "13: Pozice 2 (Deny)", hint: "Najeď na číslo pozice po zamítnutí (Deny)." },
-    { x: 147, y: 235, name: "14: Smazat položku", hint: "Najeď na tlačítko pro smazání vybraného řádku." },
-    { x: 278, y: 142, name: "15: Potvrdit smazání", hint: "Najeď na tlačítko potvrzení smazání ve vyskakovacím okně." }
+    { x: 106, y: 161, name: "1. POLOŽKA V SEZNAMU", hint: "První řádek v tabulce databáze." },
+    { x: 92,  y: 237, name: "TLAČÍTKO CHANGE", hint: "Tlačítko Change (pro otevření detailu si na něj můžeš kliknout klávesou 10)." },
+    { x: 328, y: 60,  name: "ZÁLOŽKA ADDITIONAL FIELDS", hint: "Záložka Additional fields (klikni klávesou 10, ať vidíš pole Data A a B)." },
+    { x: 99,  y: 94,  name: "POLE DATA A", hint: "Textové pole pro kopírování Data A." },
+    { x: 77,  y: 87,  name: "POLE DATA B", hint: "Textové pole pro kopírování Data B." },
+    { x: 33,  y: 59,  name: "ZÁLOŽKA GENERAL", hint: "Záložka General (klikni klávesou 10)." },
+    { x: 179, y: 94,  name: "TESTING CHARACTERISTICS", hint: "Tlačítko Testing characteristics (klikni klávesou 10)." },
+    { x: 160, y: 75,  name: "POLE NAME (DATA C)", hint: "Vyhledávací pole Name, kam se vkládají Data C." },
+    { x: 463, y: 157, name: "TLAČÍTKO SEARCH", hint: "Tlačítko Search." },
+    { x: 464, y: 220, name: "TLAČÍTKO ADOPT", hint: "Tlačítko Adopt." },
+    { x: 45,  y: 54,  name: "POLE #macroIO (PEVNÉ)", hint: "Pevná pozice na stránce (nekalibruje se)." },
+    { x: 78,  y: 74,  name: "POZICE 1 (CHYBA)", hint: "Číslo pozice v General." },
+    { x: 444, y: 207, name: "TLAČÍTKO CANCEL", hint: "Tlačítko Cancel pro zavření detailu položky." },
+    { x: 78,  y: 54,  name: "POZICE 2 (ZAMÍTNUTÍ)", hint: "Číslo pozice po zamítnutí (Deny)." },
+    { x: 147, y: 235, name: "TLAČÍTKO SMAZAT POLOŽKU", hint: "Tlačítko pro smazání vybraného řádku v DB." },
+    { x: 278, y: 142, name: "POTVRDIT SMAZÁNÍ", hint: "Potvrzovací tlačítko ve vyskakovacím okně smazání." }
   ];
 
+  // Sekvence bodů bez bodu 10 (#macroIO zůstává vždy pevné na [45, 54])
   const CALIBRATION_SEQUENCES = {
-    EXTRACT: [10, 0, 1, 2, 3, 4, 5, 12],
-    WRITE:   [10, 0, 1, 5, 6, 7, 8, 9, 13],
-    DELETE:  [10, 0, 14, 15]
+    EXTRACT: [0, 1, 2, 3, 4, 5, 12],     // 7 pozic pro čtení
+    WRITE:   [0, 1, 5, 6, 7, 8, 9, 13],  // 8 pozic pro zápis
+    DELETE:  [0, 14, 15]                 // 3 pozice pro smazání
   };
 
   let storedCoords = [];
@@ -266,8 +273,8 @@
         const parsed = JSON.parse(saved);
         storedCoords = DEFAULT_COORDS.map((def, i) => ({
           ...def,
-          x: (parsed[i] && typeof parsed[i].x === "number") ? parsed[i].x : def.x,
-          y: (parsed[i] && typeof parsed[i].y === "number") ? parsed[i].y : def.y
+          x: (i !== 10 && parsed[i] && typeof parsed[i].x === "number") ? parsed[i].x : def.x,
+          y: (i !== 10 && parsed[i] && typeof parsed[i].y === "number") ? parsed[i].y : def.y
         }));
       } catch (e) {
         storedCoords = JSON.parse(JSON.stringify(DEFAULT_COORDS));
@@ -295,11 +302,14 @@
   function renderCoordsTable() {
     const container = document.getElementById("coordsTableContainer");
     if (!container) return;
-    container.innerHTML = storedCoords.map(c => 
-      `<div style="background:#0f172a; padding:3px 6px; border:1px solid #334155; border-radius:4px;">
-        ${c.name}: <b style="color:var(--accent);">[${c.x},${c.y}]</b>
-      </div>`
-    ).join("");
+    container.innerHTML = storedCoords
+      .map((c, idx) => ({ ...c, idx }))
+      .filter(c => c.idx !== 10)
+      .map(c => 
+        `<div style="background:#0f172a; padding:3px 6px; border:1px solid #334155; border-radius:4px;">
+          ${c.name}: <b style="color:var(--accent);">[${c.x},${c.y}]</b>
+        </div>`
+      ).join("");
   }
 
   async function syncCoordsToMacro() {
@@ -332,11 +342,13 @@
     const ptIndex = activeCalQueue[activeCalStep];
     const ptInfo = storedCoords[ptIndex];
 
-    document.getElementById("calStepTitle").innerText = 
-      `Krok ${activeCalStep + 1}/${activeCalQueue.length}: ${ptInfo.name} (nyní [${ptInfo.x}, ${ptInfo.y}])`;
-    document.getElementById("calStepDesc").innerText = 
-      `1. Stiskni na makropadu POTVRDIT (16) -> makropad najede na pozici.\n` +
-      `2. Dolaď šipkami (${ptInfo.hint}) a stiskni znovu POTVRDIT (16).`;
+    document.getElementById("calStepBadge").innerText = 
+      `KROK ${activeCalStep + 1} Z ${activeCalQueue.length} (uloženo [${ptInfo.x}, ${ptInfo.y}])`;
+    document.getElementById("calTargetName").innerText = ptInfo.name;
+    document.getElementById("calTargetName").style.color = "var(--warn)";
+    document.getElementById("calActionHint").innerHTML = 
+      `1. Potvrď <b>Tlačítkem 4</b> ➔ Makropad udělá Alt+Tab a najede na pozici.<br>` +
+      `2. Najeď šipkami na <b>${ptInfo.hint}</b> a znovu potvrď <b>Tlačítkem 4</b>.`;
 
     await sendToMacro(`CAL_WAIT:${ptIndex}`);
   }
@@ -353,8 +365,11 @@
     isWebCalibrating = false;
     document.getElementById("btnStartCal").style.display = "inline-block";
     document.getElementById("btnCancelCal").style.display = "none";
-    document.getElementById("calStepTitle").innerText = "✅ Kalibrace je kompletní a uložena!";
-    document.getElementById("calStepDesc").innerText = "Stránka si pozice pamatuje a automaticky je pošle makropadu před každou úlohou.";
+    document.getElementById("calStepBadge").innerText = "HOTOVO";
+    document.getElementById("calTargetName").innerText = "✅ KALIBRACE ULOŽENA";
+    document.getElementById("calTargetName").style.color = "var(--ok)";
+    document.getElementById("calActionHint").innerHTML = 
+      "Všechny pozice pro tuto úlohu jsou uloženy v paměti stránky.";
   }
 
   function handleCalibrationInput(rawText) {
@@ -367,11 +382,11 @@
       const newX = parseInt(parts[2], 10);
       const newY = parseInt(parts[3], 10);
 
-      if (!isNaN(idx) && idx >= 0 && idx < storedCoords.length) {
+      if (!isNaN(idx) && idx >= 0 && idx < storedCoords.length && idx !== 10) {
         storedCoords[idx].x = newX;
         storedCoords[idx].y = newY;
         saveCoordsToStorage();
-        document.getElementById('foundCoord').textContent = `Bod ${idx}: [${newX}, ${newY}]`;
+        document.getElementById('foundCoord').textContent = `${storedCoords[idx].name}: [${newX}, ${newY}]`;
 
         if (isWebCalibrating) {
           activeCalStep++;
@@ -691,7 +706,6 @@
     document.getElementById('manC').value = "";
   }
 
-  // --- ZPRACOVÁNÍ VSTUPU OD MAKROPADU ---
   const ioInput = document.getElementById('macroIO');
   const stepLabel = document.getElementById('stepLabel');
 
@@ -701,7 +715,7 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // 1. Kontrola, zda jde o kalibrační bod z průvodce (CAL_PT:idx:X:Y)
+      // Zpracování kalibračního bodu z Tlačítka 4 (CAL_PT:idx:X:Y)
       if (handleCalibrationInput(val)) {
         return;
       }
