@@ -20,7 +20,6 @@
   .commander-panel { background: #020617; border: 1px solid #334155; padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
   .cal-panel { background: #020617; border: 2px solid var(--accent); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
   
-  /* VELKÝ VÝRAZNÝ DISPLEJ PRO KALIBRACI */
   .cal-big-display { display: none; padding: 14px; background: #1e1b4b; border: 3px solid var(--warn); border-radius: 8px; text-align: center; }
   .cal-step-badge { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
   .cal-target-name { font-size: 26px; font-weight: 900; color: var(--warn); margin: 6px 0; text-transform: uppercase; line-height: 1.2; }
@@ -70,7 +69,7 @@
       <button class="secondary" onclick="resetCycle()">Reset cyklu</button>
     </div>
 
-    <!-- PANEL KALIBRACE NA STRÁNCE (POTVRZOVÁNÍ TLAČÍTKEM 4) -->
+    <!-- PANEL KALIBRACE NA STRÁNCE -->
     <hr style="border-color:#334155; width:100%; margin:2px 0;">
     <h2>2. 🎯 Kalibrace pozic (Tlačítkem 4)</h2>
     <div class="cal-panel">
@@ -84,7 +83,6 @@
         <button id="btnCancelCal" class="danger" onclick="cancelWebCalibration()" style="display:none; padding:7px 14px;">Zrušit</button>
       </div>
 
-      <!-- VELKÝ BOX S NÁZVEM POZICE -->
       <div id="calInstructionBox" class="cal-big-display">
         <div id="calStepBadge" class="cal-step-badge">KROK 1 Z 7</div>
         <div id="calTargetName" class="cal-target-name">1. POLOŽKA V SEZNAMU</div>
@@ -105,7 +103,7 @@
     <div class="commander-panel">
       <div class="row-flex" style="gap:4px;">
         <label style="font-size:11px; white-space:nowrap;">Celkem:</label>
-        <input type="number" id="dbTotalItems" value="50" min="1" style="width: 50px;">
+        <input type="number" id="dbTotalItems" value="50" min="1" style="width: 50px;" onchange="saveFolderTotal(this.value)">
         <label style="font-size:11px; white-space:nowrap; margin-left:4px;">Od:</label>
         <input type="number" id="batchStart" value="1" min="1" style="width: 50px;">
         <label style="font-size:11px; white-space:nowrap; margin-left:4px;">Do:</label>
@@ -231,34 +229,49 @@
     </div>
   </div>
 
+  <!-- MODAL PRO EDITACI POLOŽKY -->
+  <div id="editModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 style="margin-bottom: 15px;">Upravit záznam v logu</h3>
+      <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
+        <label>Fyzický řádek / Index: <input type="number" id="editRowInput" min="1"></label>
+        <label>Pozice v DB: <input type="text" id="editDbPosInput"></label>
+        <label>Data A: <input type="text" id="editAInput"></label>
+        <label>Data B: <input type="text" id="editBInput"></label>
+        <label>Data C: <input type="text" id="editCInput"></label>
+        <label>Stav (status): <input type="text" id="editStatusInput"></label>
+      </div>
+      <div class="row-flex" style="margin-top: 15px; justify-content: flex-end;">
+        <button class="secondary" onclick="closeEditModal()">Zrušit</button>
+        <button onclick="saveEditedLog()">Uložit změny</button>
+      </div>
+    </div>
+  </div>
+
 <script>
-  // ============================================================================
-  // 1. DEFINICE A PAMĚŤ KALIBRAČNÍCH SOUŘADNIC (BEZ #macroIO)
-  // ============================================================================
   const DEFAULT_COORDS = [
     { x: 106, y: 161, name: "1. POLOŽKA V SEZNAMU", hint: "První řádek v tabulce databáze." },
-    { x: 92,  y: 237, name: "TLAČÍTKO CHANGE", hint: "Tlačítko Change (pro otevření detailu si na něj můžeš kliknout klávesou 10)." },
-    { x: 328, y: 60,  name: "ZÁLOŽKA ADDITIONAL FIELDS", hint: "Záložka Additional fields (klikni klávesou 10, ať vidíš pole Data A a B)." },
-    { x: 99,  y: 94,  name: "POLE DATA A", hint: "Textové pole pro kopírování Data A." },
-    { x: 77,  y: 87,  name: "POLE DATA B", hint: "Textové pole pro kopírování Data B." },
-    { x: 33,  y: 59,  name: "ZÁLOŽKA GENERAL", hint: "Záložka General (klikni klávesou 10)." },
-    { x: 179, y: 94,  name: "TESTING CHARACTERISTICS", hint: "Tlačítko Testing characteristics (klikni klávesou 10)." },
-    { x: 160, y: 75,  name: "POLE NAME (DATA C)", hint: "Vyhledávací pole Name, kam se vkládají Data C." },
-    { x: 463, y: 157, name: "TLAČÍTKO SEARCH", hint: "Tlačítko Search." },
-    { x: 464, y: 220, name: "TLAČÍTKO ADOPT", hint: "Tlačítko Adopt." },
-    { x: 45,  y: 54,  name: "POLE #macroIO (PEVNÉ)", hint: "Pevná pozice na stránce (nekalibruje se)." },
-    { x: 78,  y: 74,  name: "POZICE 1 (CHYBA)", hint: "Číslo pozice v General." },
-    { x: 444, y: 207, name: "TLAČÍTKO CANCEL", hint: "Tlačítko Cancel pro zavření detailu položky." },
-    { x: 78,  y: 54,  name: "POZICE 2 (ZAMÍTNUTÍ)", hint: "Číslo pozice po zamítnutí (Deny)." },
-    { x: 147, y: 235, name: "TLAČÍTKO SMAZAT POLOŽKU", hint: "Tlačítko pro smazání vybraného řádku v DB." },
-    { x: 278, y: 142, name: "POTVRDIT SMAZÁNÍ", hint: "Potvrzovací tlačítko ve vyskakovacím okně smazání." }
+    { x: 92,  y: 237, name: "TLAČÍTKO CHANGE", hint: "Tlačítko Change." },
+    { x: 328, y: 60,  name: "ZÁLOŽKA ADDITIONAL FIELDS", hint: "Záložka Additional fields." },
+    { x: 99,  y: 94,  name: "POLE DATA A", hint: "Textové pole pro Data A." },
+    { x: 77,  y: 87,  name: "POLE DATA B", hint: "Textové pole pro Data B." },
+    { x: 33,  y: 59,  name: "ZÁLOŽKA GENERAL", hint: "Záložka General." },
+    { x: 179, y: 94,  name: "TESTING CHARACTERISTICS", hint: "Testing characteristics." },
+    { x: 160, y: 75,  name: "POLE NAME (DATA C)", hint: "Pole Name pro Data C." },
+    { x: 463, y: 157, name: "Tlačítko SEARCH", hint: "Tlačítko Search." },
+    { x: 464, y: 220, name: "Tlačítko ADOPT", hint: "Tlačítko Adopt." },
+    { x: 45,  y: 54,  name: "POLE #macroIO", hint: "Pevná pozice." },
+    { x: 78,  y: 74,  name: "POZICE 1 (CHYBA)", hint: "Pozice 1." },
+    { x: 444, y: 207, name: "Tlačítko CANCEL", hint: "Tlačítko Cancel." },
+    { x: 78,  y: 54,  name: "POZICE 2 (DENY)", hint: "Pozice 2." },
+    { x: 147, y: 235, name: "TLAČÍTKO SMAZAT", hint: "Tlačítko Smazat." },
+    { x: 278, y: 142, name: "POTVRDIT SMAZÁNÍ", hint: "Potvrzení smazání." }
   ];
 
-  // Sekvence bodů bez bodu 10 (#macroIO zůstává vždy pevné na [45, 54])
   const CALIBRATION_SEQUENCES = {
-    EXTRACT: [0, 1, 2, 3, 4, 5, 12],     // 7 pozic pro čtení
-    WRITE:   [0, 1, 5, 6, 7, 8, 9, 13],  // 8 pozic pro zápis
-    DELETE:  [0, 14, 15]                 // 3 pozice pro smazání
+    EXTRACT: [0, 1, 2, 3, 4, 5, 12],
+    WRITE:   [0, 1, 5, 6, 7, 8, 9, 13],
+    DELETE:  [0, 14, 15]
   };
 
   let storedCoords = [];
@@ -421,17 +434,40 @@
 
   let waitingForB = false;
 
-  let appState = { folders: ["Výchozí složka"], activeFolder: "Výchozí složka", logs: [], globalSeq: 1 };
+  let appState = { 
+    folders: ["Výchozí složka"], 
+    activeFolder: "Výchozí složka", 
+    folderTotals: { "Výchozí složka": 50 }, 
+    logs: [], 
+    globalSeq: 1 
+  };
 
   function saveState() { localStorage.setItem('dbAutomatState', JSON.stringify(appState)); }
   function loadState() {
     loadCoordsFromStorage();
     const saved = localStorage.getItem('dbAutomatState');
-    if (saved) { appState = JSON.parse(saved); }
+    if (saved) { 
+      appState = JSON.parse(saved); 
+    }
     if (!appState.folders || appState.folders.length === 0) appState.folders = ["Výchozí složka"];
     if (!appState.activeFolder) appState.activeFolder = appState.folders[0];
+    if (!appState.folderTotals) appState.folderTotals = {};
+    if (appState.folderTotals[appState.activeFolder] === undefined) {
+      appState.folderTotals[appState.activeFolder] = 50;
+    }
     if (!appState.globalSeq) appState.globalSeq = 1;
     
+    // Automatické očíslení starých položek, pokud jim chybí listIndex
+    let curLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
+    let needsIndex = curLogs.some(l => !l.listIndex);
+    if (needsIndex) {
+      let sorted = [...curLogs].sort((a, b) => a.id - b.id);
+      sorted.forEach((item, index) => {
+        item.listIndex = index + 1;
+      });
+      saveState();
+    }
+
     const savedEx = localStorage.getItem('savedExcelData');
     if (savedEx) {
       document.getElementById('excelInput').value = savedEx;
@@ -449,19 +485,43 @@
       if (f === appState.activeFolder) opt.selected = true;
       sel.appendChild(opt);
     });
+    
+    if (appState.folderTotals[appState.activeFolder] === undefined) {
+      appState.folderTotals[appState.activeFolder] = 50;
+    }
+    document.getElementById('dbTotalItems').value = appState.folderTotals[appState.activeFolder];
   }
-  function changeFolder() { appState.activeFolder = document.getElementById('folderSelect').value; saveState(); renderLog(); updateStats(); }
+
+  function changeFolder() { 
+    appState.activeFolder = document.getElementById('folderSelect').value; 
+    document.getElementById('dbTotalItems').value = appState.folderTotals[appState.activeFolder] || 50;
+    saveState(); renderLog(); updateStats(); 
+  }
+
+  function saveFolderTotal(val) {
+    let num = parseInt(val, 10);
+    if (!isNaN(num) && num > 0) {
+      appState.folderTotals[appState.activeFolder] = num;
+      saveState();
+    }
+  }
+
   function addFolder() {
     const name = prompt("Název nové složky pro logy:");
     if (name && name.trim() !== "" && !appState.folders.includes(name)) {
-      appState.folders.push(name.trim()); appState.activeFolder = name.trim();
+      let newName = name.trim();
+      appState.folders.push(newName); 
+      appState.folderTotals[newName] = 50;
+      appState.activeFolder = newName;
       saveState(); renderFolders(); renderLog(); updateStats();
     }
   }
+
   function deleteFolder() {
     if (appState.folders.length <= 1) return alert("Poslední složku nelze smazat.");
-    if (confirm(`Opravdu smazat složku "${appState.activeFolder}" a všechny její logy?`)) {
+    if (confirm(`Opravdu chceš vymazat složku "${appState.activeFolder}"?`)) {
       appState.logs = appState.logs.filter(l => l.folder !== appState.activeFolder);
+      delete appState.folderTotals[appState.activeFolder];
       appState.folders = appState.folders.filter(f => f !== appState.activeFolder);
       appState.activeFolder = appState.folders[0];
       saveState(); renderFolders(); renderLog(); updateStats();
@@ -561,25 +621,25 @@
     let mode = document.getElementById('writeModeSelect').value;
 
     if (mode === 'ok_all') {
-      writeQueue = currentFolderLogs.filter(l => l.status === 'OK');
+      writeQueue = currentFolderLogs.filter(l => l.status === 'OK' && !(l.statusText && l.statusText.includes("[SMAZÁNO]")));
     } else if (mode === 'ok_range') {
       let startIdx = parseInt(document.getElementById('writeStart').value, 10);
       let endIdx = parseInt(document.getElementById('writeEnd').value, 10);
       writeQueue = currentFolderLogs.filter(l => {
           let idx = l.listIndex;
-          return l.status === 'OK' && idx >= startIdx && idx <= endIdx;
+          return l.status === 'OK' && idx >= startIdx && idx <= endIdx && !(l.statusText && l.statusText.includes("[SMAZÁNO]"));
       });
     } else {
       let str = document.getElementById('writeCustomPos').value;
       let posArray = str.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
       writeQueue = [];
       for (let p of posArray) {
-        let match = currentFolderLogs.find(l => parseInt(l.dbPosText.replace(/[^\d]/g, '')) === p);
+        let match = currentFolderLogs.find(l => l.listIndex === p && !(l.statusText && l.statusText.includes("[SMAZÁNO]")));
         if (match) writeQueue.push(match);
       }
     }
 
-    if (writeQueue.length === 0) return alert("Nenalezeny žádné odpovídající položky pro zápis.");
+    if (writeQueue.length === 0) return alert("Nenalezeny žádné živé položky pro zápis v daném rozsahu.");
 
     writeQueue.sort((a, b) => a.listIndex - b.listIndex);
 
@@ -599,13 +659,12 @@
     }
 
     let item = writeQueue[writeIndex];
-    let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, '')) || 0;
     let { effectiveTargetRow, effectiveTotal } = getEffectiveIndices(item);
 
     const ioBox = document.getElementById('macroIO');
     ioBox.value = item.c; ioBox.focus(); ioBox.select(); 
 
-    document.getElementById('stepLabel').textContent = `ZAPISUJI POZICI DB ${posNum} (Efekt. řádek: ${effectiveTargetRow}/${effectiveTotal})...`;
+    document.getElementById('stepLabel').textContent = `ZAPISUJI POLOŽKU (Efekt. řádek: ${effectiveTargetRow}/${effectiveTotal})...`;
     document.getElementById('stepLabel').style.color = "var(--warn)";
     sendToMacro(`WRITE_ITEM:${effectiveTargetRow}:${effectiveTotal}:${getRetardValue()}`);
   }
@@ -625,6 +684,7 @@
 
     if (deleteQueue.length === 0) return alert("Všechny vybrané položky už jsou označeny jako smazané.");
 
+    // DŮLEŽITÉ: Řazení odspodu nahoru (sestupně podle listIndex), aby se neposunuly indexy pro další mazání
     deleteQueue.sort((a, b) => b.listIndex - a.listIndex);
 
     deleteIndex = 0;
@@ -643,10 +703,9 @@
     }
 
     let item = deleteQueue[deleteIndex];
-    let posNum = parseInt(item.dbPosText.replace(/[^\d]/g, '')) || 0;
     let { effectiveTargetRow, effectiveTotal } = getEffectiveIndices(item);
 
-    document.getElementById('stepLabel').textContent = `MAŽU POZICI DB ${posNum} (Efekt. řádek: ${effectiveTargetRow}/${effectiveTotal})...`;
+    document.getElementById('stepLabel').textContent = `MAŽU POLOŽKU (Efekt. řádek: ${effectiveTargetRow}/${effectiveTotal})...`;
     document.getElementById('stepLabel').style.color = "var(--err)";
     
     sendToMacro(`DELETE_ITEM:${effectiveTargetRow}:${effectiveTotal}:${getRetardValue()}`);
@@ -657,10 +716,17 @@
     if (!log) return;
     
     if (!cb.checked && log.statusText.includes("[SMAZÁNO]")) {
-      if (confirm("Opravdu chcete ZRUŠIT smazání této položky?")) {
+      if (confirm("Opravdu chcete ZRUŠIT smazání této položky? Obnoví se v seznamu a celkový počet se zvětší.")) {
          log.statusText = log.statusText.replace(" [SMAZÁNO]", "");
+         
+         // ZVÝŠIT CELKOVÝ POČET POLOŽEK O 1
+         let curTotal = appState.folderTotals[appState.activeFolder] || 50;
+         appState.folderTotals[appState.activeFolder] = curTotal + 1;
+         document.getElementById('dbTotalItems').value = appState.folderTotals[appState.activeFolder];
+
          saveState();
          renderLog();
+         updateStats();
       } else {
          cb.checked = true;
       }
@@ -715,7 +781,6 @@
       const val = ioInput.value.trim();
       ioInput.value = "";
 
-      // Zpracování kalibračního bodu z Tlačítka 4 (CAL_PT:idx:X:Y)
       if (handleCalibrationInput(val)) {
         return;
       }
@@ -726,20 +791,17 @@
         return;
       }
 
-    if (deleteActive) {
+      if (deleteActive) {
         if (val === "DEL_OK") {
           let item = deleteQueue[deleteIndex];
           if (!item.statusText.includes("[SMAZÁNO]")) {
             item.statusText += " [SMAZÁNO]";
             
-            // AUTOMATICKY SNÍŽIT CELKOVÝ POČET POLOŽEK O JEDNU V ROZHRANÍ
-            const totalInput = document.getElementById('dbTotalItems');
-            if (totalInput) {
-              let currentTotal = parseInt(totalInput.value, 10) || 0;
-              if (currentTotal > 1) {
-                totalInput.value = currentTotal - 1;
-              }
-            }
+            // AUTOMATICKY SNÍŽIT CELKOVÝ POČET POLOŽEK O JEDNU VE SLOŽCE
+            let curTotal = appState.folderTotals[appState.activeFolder] || 50;
+            if (curTotal > 1) curTotal--;
+            appState.folderTotals[appState.activeFolder] = curTotal;
+            document.getElementById('dbTotalItems').value = curTotal;
           }
           saveState(); renderLog(); updateStats();
           deleteIndex++;
@@ -944,7 +1006,10 @@
         <td>
           <div class="row-flex" style="justify-content:space-between; width:100%;">
             <span style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block; max-width: 140px;" title="${escapeHtml(safeNote)}">${escapeHtml(safeNote)}</span>
-            <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="openNoteModal(${item.id})">📝</button>
+            <div class="row-flex" style="gap:2px;">
+              <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="openEditModal(${item.id})" title="Upravit záznam">✏️</button>
+              <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="openNoteModal(${item.id})" title="Poznámka">📝</button>
+            </div>
           </div>
         </td>
         <td><button class="del-btn" onclick="deleteLog(${item.id})" title="Smazat záznam z tabulky">🗑</button></td>
@@ -955,6 +1020,43 @@
 
   function deleteLog(id) { appState.logs = appState.logs.filter(l => l.id !== id); saveState(); updateStats(); renderLog(); }
   
+  // --- UNIVERZÁLNÍ EDITACE POLOŽKY ---
+  function openEditModal(id) {
+    const log = appState.logs.find(l => l.id === id);
+    if (!log) return;
+    currentEditingLogId = id;
+    document.getElementById('editRowInput').value = log.listIndex || 1;
+    document.getElementById('editDbPosInput').value = log.dbPosText;
+    document.getElementById('editAInput').value = log.a;
+    document.getElementById('editBInput').value = log.b;
+    document.getElementById('editCInput').value = log.c;
+    document.getElementById('editStatusInput').value = log.statusText;
+    document.getElementById('editModal').style.display = 'flex';
+  }
+
+  function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+    currentEditingLogId = null;
+  }
+
+  function saveEditedLog() {
+    if (!currentEditingLogId) return;
+    const log = appState.logs.find(l => l.id === currentEditingLogId);
+    if (!log) return;
+
+    log.listIndex = parseInt(document.getElementById('editRowInput').value, 10) || 1;
+    log.dbPosText = document.getElementById('editDbPosInput').value.trim();
+    log.a = document.getElementById('editAInput').value.trim();
+    log.b = document.getElementById('editBInput').value.trim();
+    log.c = document.getElementById('editCInput').value.trim();
+    log.statusText = document.getElementById('editStatusInput').value.trim();
+
+    saveState();
+    renderLog();
+    updateStats();
+    closeEditModal();
+  }
+
   function openNoteModal(id) {
     const log = appState.logs.find(l => l.id === id);
     if (!log) return;
