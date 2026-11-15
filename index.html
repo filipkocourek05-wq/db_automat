@@ -729,7 +729,18 @@
       if (deleteActive) {
         if (val === "DEL_OK") {
           let item = deleteQueue[deleteIndex];
-          if (!item.statusText.includes("[SMAZÁNO]")) item.statusText += " [SMAZÁNO]";
+          if (!item.statusText.includes("[SMAZÁNO]")) {
+            item.statusText += " [SMAZÁNO]";
+            
+            // AUTOMATICKY SNÍŽIT CELKOVÝ POČET POLOŽEK O JEDNU
+            const totalInput = document.getElementById('dbTotalItems');
+            if (totalInput) {
+              let currentTotal = parseInt(totalInput.value, 10) || 0;
+              if (currentTotal > 0) {
+                totalInput.value = currentTotal - 1;
+              }
+            }
+          }
           saveState(); renderLog(); updateStats();
           deleteIndex++;
           processNextDeleteItem();
