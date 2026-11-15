@@ -726,17 +726,17 @@
         return;
       }
 
-      if (deleteActive) {
+    if (deleteActive) {
         if (val === "DEL_OK") {
           let item = deleteQueue[deleteIndex];
           if (!item.statusText.includes("[SMAZÁNO]")) {
             item.statusText += " [SMAZÁNO]";
             
-            // AUTOMATICKY SNÍŽIT CELKOVÝ POČET POLOŽEK O JEDNU
+            // AUTOMATICKY SNÍŽIT CELKOVÝ POČET POLOŽEK O JEDNU V ROZHRANÍ
             const totalInput = document.getElementById('dbTotalItems');
             if (totalInput) {
               let currentTotal = parseInt(totalInput.value, 10) || 0;
-              if (currentTotal > 0) {
+              if (currentTotal > 1) {
                 totalInput.value = currentTotal - 1;
               }
             }
