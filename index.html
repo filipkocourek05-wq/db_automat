@@ -561,16 +561,17 @@
     }
   }
 
-  function getEffectiveIndices(item) {
+ function getEffectiveIndices(item) {
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
     let deletedLogs = currentFolderLogs.filter(l => l.statusText && l.statusText.includes("[SMAZÁNO]"));
     
-    let totalDeleted = deletedLogs.length;
+    // Počet smazaných položek, které ležely NAD touto položkou (posouvají tuto položku nahoru)
     let deletedBeforeCount = deletedLogs.filter(l => (l.listIndex || 0) < (item.listIndex || 0)).length;
 
-    let originalTotal = parseInt(document.getElementById('dbTotalItems').value, 10) || 1;
+    // Kolonka 'dbTotalItems' se už při mazání průběžně snižuje, takže obsahuje AKTUÁLNÍ počet položek v DB!
+    let currentTotalInDB = parseInt(document.getElementById('dbTotalItems').value, 10) || 1;
     let effectiveTargetRow = (item.listIndex || 0) - deletedBeforeCount;
-    let effectiveTotal = originalTotal - totalDeleted;
+    let effectiveTotal = currentTotalInDB; // OPRAVENO: Už znovu neodečítáme totalDeleted!
 
     return { effectiveTargetRow, effectiveTotal };
   }
