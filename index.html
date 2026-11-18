@@ -77,7 +77,7 @@
         <select id="calModeSelect" style="flex:1; font-size:13px; padding:6px;">
           <option value="ROWS">Kalibrace řádků (1. a 12. řádek)</option>
           <option value="EXTRACT">Extrahování dat (6 pozic)</option>
-          <option value="WRITE">Zápis dat C (7 pozic)</option>
+          <option value="WRITE">Zápis dat C (9 pozic)</option>
           <option value="DELETE">Smazání položky (2 pozice)</option>
         </select>
         <button id="btnStartCal" onclick="startWebCalibration()" style="background:var(--accent); color:#000; padding:7px 14px;">Spustit kalibraci</button>
@@ -252,7 +252,7 @@
 
 <script>
   // ============================================================================
-  // 1. DEFINICE A PAMĚŤ KALIBRAČNÍCH SOUŘADNIC (17 BODŮ, BOD 0 = 1. ŘÁDEK, BOD 16 = 12. ŘÁDEK)
+  // 1. DEFINICE A PAMĚŤ KALIBRAČNÍCH SOUŘADNIC (19 BODŮ: 0 až 18)
   // ============================================================================
   const DEFAULT_COORDS = [
     { x: 106, y: 161, name: "1. ŘÁDEK V SEZNAMU", hint: "První řádek nahoře v tabulce databáze." },
@@ -264,22 +264,24 @@
     { x: 179, y: 94,  name: "TESTING CHARACTERISTICS", hint: "Tlačítko Testing characteristics (klikni klávesou 10)." },
     { x: 160, y: 75,  name: "POLE NAME (DATA C)", hint: "Pole Name pro vložení Data C." },
     { x: 463, y: 157, name: "TLAČÍTKO SEARCH", hint: "Tlačítko Search." },
-    { x: 464, y: 220, name: "TLAČÍTKO ADOPT", hint: "Tlačítko Adopt." },
+    { x: 464, y: 220, name: "TLAČÍTKO ADOPT / ALLOW", hint: "Tlačítko Adopt / Allow (po jeho odkliknutí klávesou 10 se ukáže pole Number measurements)." },
     { x: 45,  y: 54,  name: "POLE #macroIO", hint: "Pevná pozice na stránce." },
     { x: 78,  y: 74,  name: "POZICE 1 (CHYBA)", hint: "Číslo pozice v General." },
     { x: 444, y: 207, name: "TLAČÍTKO CANCEL", hint: "Tlačítko Cancel pro zavření detailu položky." },
     { x: 78,  y: 54,  name: "POZICE 2 (ZAMÍTNUTÍ)", hint: "Číslo pozice po zamítnutí (Deny)." },
     { x: 147, y: 235, name: "TLAČÍTKO SMAZAT POLOŽKU", hint: "Tlačítko pro smazání vybraného řádku." },
     { x: 278, y: 142, name: "POTVRDIT SMAZÁNÍ", hint: "Potvrzovací tlačítko ve vyskakovacím okně smazání." },
-    { x: 106, y: 227, name: "12. (POSLEDNÍ) ŘÁDEK V SEZNAMU", hint: "Dvanáctý (úplně spodní viditelný) řádek v tabulce databáze." }
+    { x: 106, y: 227, name: "12. (POSLEDNÍ) ŘÁDEK V SEZNAMU", hint: "Dvanáctý (úplně spodní viditelný) řádek v tabulce databáze." },
+    { x: 200, y: 150, name: "POLE NUMBER MEASUREMENTS", hint: "Pole Number measurements, kam makropad vždy zapíše číslo 1." },
+    { x: 464, y: 220, name: "TLAČÍTKO SAVE", hint: "Finální tlačítko Save pro uložení po zapsání jedničky." }
   ];
 
-  // Kalibrace řádků je samostatná (ROWS), v ostatních kalibracích už 1. řádek není
+  // Sekvence pro jednotlivé kalibrace
   const CALIBRATION_SEQUENCES = {
-    ROWS:    [0, 16],                   // 1. řádek a 12. řádek (ostatních 10 mezi nimi si dopočítá)
-    EXTRACT: [1, 2, 3, 4, 5, 12],       // 6 pozic pro čtení (bez 1. řádku)
-    WRITE:   [1, 5, 6, 7, 8, 9, 13],    // 7 pozic pro zápis (bez 1. řádku)
-    DELETE:  [14, 15]                   // 2 pozice pro smazání (bez 1. řádku)
+    ROWS:    [0, 16],                         // 1. řádek a 12. řádek
+    EXTRACT: [1, 2, 3, 4, 5, 12],             // 6 pozic pro čtení
+    WRITE:   [1, 5, 6, 7, 8, 9, 17, 18, 13],  // 9 pozic pro zápis (včetně Number measurements a Save)
+    DELETE:  [14, 15]                         // 2 pozice pro smazání
   };
 
   let storedCoords = [];
@@ -587,7 +589,6 @@
     }
   }
 
-  // OPRAVENÝ VÝPOČET EFEKTIVNÍCH ŘÁDKŮ (BEZ DVOJÍHO ODEČÍTÁNÍ)
   function getEffectiveIndices(item) {
     let currentFolderLogs = appState.logs.filter(l => l.folder === appState.activeFolder);
     let deletedLogs = currentFolderLogs.filter(l => l.statusText && l.statusText.includes("[SMAZÁNO]"));
@@ -729,6 +730,9 @@
 
     let item = deleteQueue[deleteIndex];
     let { effectiveTargetRow, effectiveTotal } = getEffectiveIndices(item);
+
+    const ioBox = document.getElementById('macroIO');
+    ioBox.focus();
 
     document.getElementById('stepLabel').textContent = `MAŽU POLOŽKU (Efekt. řádek: ${effectiveTargetRow}/${effectiveTotal})...`;
     document.getElementById('stepLabel').style.color = "var(--err)";
